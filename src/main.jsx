@@ -1,6 +1,10 @@
 import React from 'react';
-import {createRoot} from 'react-dom/client';
-import {title} from './i18n/zh-CN';
+import { createRoot } from 'react-dom/client';
+import { title } from './i18n/zh-CN';
+import { startClock } from './store/game';
+import { App } from './ui/layout/App';
+import './ui/layout/style.css';
 document.title = title;
-createRoot(document.querySelector('#root')).render(<main>{title}</main>);
-
+createRoot(document.getElementById('root')).render(<App />);
+const stop = startClock();
+if (import.meta.hot) import.meta.hot.dispose(stop);

@@ -86,4 +86,3 @@ console.log(
 console.log('交付', Object.fromEntries(quantities(state.goalDelivered)));
 if (minutes < b.targetMin || minutes > b.targetMax || state.merchant.stage !== 'finished')
   console.warn('警告：未达到规格中的通关时间范围，请策划复核。');
-
