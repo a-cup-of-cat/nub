@@ -1,0 +1,29 @@
+{
+  "name": "crashstar-factory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "lint": "eslint . && tsc --noEmit",
+    "format": "prettier --write src scripts *.mjs *.json index.html",
+    "simulate": "tsx scripts/simulate.ts"
+  },
+  "dependencies": {
+    "react": "latest",
+    "react-dom": "latest",
+    "zustand": "latest",
+    "@xyflow/react": "latest",
+    "lucide-react": "latest"
+  },
+  "devDependencies": {
+    "vite": "latest",
+    "typescript": "latest",
+    "vitest": "latest",
+    "eslint": "latest",
+    "prettier": "latest",
+    "tsx": "latest"
+  }
+}
