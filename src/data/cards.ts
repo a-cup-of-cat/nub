@@ -1,1 +1,24 @@
-export {};
+export const cards = {
+  boost_mining: { tier: 'common', family: '', effect: 1.15 },
+  boost_smelting: { tier: 'common', family: '', effect: 1.15 },
+  boost_assembly: { tier: 'common', family: '', effect: 1.15 },
+  order_bonus: { tier: 'common', family: '', effect: 1.2 },
+  cheap_grid: { tier: 'common', family: '', effect: 0.7 },
+  bulk_contract: { tier: 'rare', family: 'trade', quantity: 2, reward: 3 },
+  regular: { tier: 'rare', family: 'trade', step: 0.1, max: 1 },
+  merchant_friend: { tier: 'rare', family: 'trade' },
+  haggle: { tier: 'rare', family: 'trade', effect: 0.75 },
+  lean: { tier: 'rare', family: 'precision', step: 0.02, max: 0.4 },
+  heavy: { tier: 'rare', family: 'precision', effect: 2.5, footprint: 2 },
+  modular: { tier: 'rare', family: 'precision', effect: 1 },
+  precision: { tier: 'rare', family: 'precision', effect: 0.8 },
+  airdrop: { tier: 'rare', family: 'frontier', effect: 2 },
+  pioneer_horn: { tier: 'rare', family: 'frontier', effect: 2, minutes: 15 },
+  first_free: { tier: 'rare', family: 'frontier' },
+  pick_master: { tier: 'rare', family: 'frontier', effect: 10 },
+  automation_core: { tier: 'legendary', family: '', effect: 1.5 },
+  black_market: { tier: 'legendary', family: '' },
+  quantum_copy: { tier: 'legendary', family: '', effect: 1.05 },
+} as const;
+export type CardId = keyof typeof cards;
+export const cardIds = Object.keys(cards) as CardId[];
