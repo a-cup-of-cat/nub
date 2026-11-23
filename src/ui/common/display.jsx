@@ -15,6 +15,7 @@ import {
   Microchip,
   Waypoints,
 } from 'lucide-react';
+import { rateText } from './resourceReadout';
 import { items, quantities } from '../../data/items';
 import { definition, machineIds } from '../../data/machines';
 import { available } from '../../engine/build';
@@ -67,13 +68,13 @@ export function shown(s) {
         available(s, id)),
   );
 }
-export function Amounts({ values, stock }) {
+export function Amounts({ values, stock, perTime = false }) {
   return (
     <span className="amounts">
       {quantities(values).map(([id, n]) => (
         <span key={id} className={stock && stock[id] + balance.epsilon < n ? 'low' : ''}>
           <Resource id={id} />
-          {t.items[id]} <b>{fmt(n)}</b>
+          {t.items[id]} <b>{perTime ? rateText(n) : fmt(n)}</b>
         </span>
       ))}
     </span>
@@ -86,6 +87,11 @@ export function status(s, id) {
     : g.paused === g.count
       ? t.ui.stopped
       : g.shortage
-        ? t.ui.short + t.items[g.shortage] + ' ' + percent(1 - g.utilization)
+        ? (g.beltLimited
+            ? (g.utilization ? t.belts.capacity : t.belts.disconnected) + ' · '
+            : t.ui.short) +
+          t.items[g.shortage] +
+          ' ' +
+          percent(1 - g.utilization)
         : t.ui.full;
 }

@@ -55,10 +55,10 @@ export function MachineInfo({ s, id, act, batch, focus, pressure }) {
       <div className="recipe">
         {Object.keys(d.input).length ? (
           <>
-            <Amounts values={d.input} /> →{' '}
+            <Amounts values={d.input} perTime /> →{' '}
           </>
         ) : null}
-        <Amounts values={d.output} /> {t.ui.minute}
+        <Amounts values={d.output} perTime />
       </div>
       <div className="meter">
         <i style={{ width: percent(fraction) }} />
@@ -66,7 +66,7 @@ export function MachineInfo({ s, id, act, batch, focus, pressure }) {
       <div className="machine-status">
         <span>
           {g.shortage ? (
-            <button className="text-btn nodrag" onClick={() => focus?.(g.shortage)}>
+            <button className="text-btn nodrag" onClick={() => focus?.(g.shortage, id)}>
               {status(s, id)} ↗
             </button>
           ) : (

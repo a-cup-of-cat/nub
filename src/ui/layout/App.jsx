@@ -26,10 +26,12 @@ import { rawItems, quantities } from '../../data/items';
 import { machineIds, definition } from '../../data/machines';
 import { cards } from '../../data/cards';
 import { usedGrid, mine } from '../../engine/build';
+import { pairs } from '../../engine/belts';
 import { analysis } from '../../engine/rates';
 import { serialize } from '../../engine/save';
 import { trading } from '../../engine/merchant';
-import { fmt, time, Resource } from '../common/display';
+import { Inventory } from './Inventory';
+import { fmt, time } from '../common/display';
 const Network = lazy(() => import('../graph/Network').then((m) => ({ default: m.Network })));
 import { ValveControls } from '../list/ValveControls';
 import { MachineList } from '../list/Machines';
@@ -51,7 +53,8 @@ export function App() {
     [selection, setSelection] = useState('stone'),
     [batch, setBatch] = useState(1),
     [selected, setSelected] = useState(null),
-    [focusToken, setFocusToken] = useState(0);
+    [focusToken, setFocusToken] = useState(0),
+    [requestedLink, setRequestedLink] = useState(null);
   const transfer = useRef(null),
     ending = useRef(null),
     stage = s.merchant.stage;
@@ -68,7 +71,14 @@ export function App() {
     setFocusToken((n) => n + 1);
     if (view === 'list') requestAnimationFrame(() => document.getElementById('row-' + id)?.focus());
   };
-  const focusItem = (item) => {
+  const focusItem = (item, target) => {
+    const link = pairs.find((p) => p.item === item && p.target === target);
+    if (link && s.machines[target].beltLimited && s.machines[link.source].count) {
+      setTab('factory');
+      setView('graph');
+      setRequestedLink(link.key);
+      return;
+    }
     const producer = machineIds.find((m) => item in definition(m).output);
     if (producer) focus(producer);
   };
@@ -163,25 +173,8 @@ export function App() {
               <code>{time(s.timeSec)}</code>
             </div>
           </div>
-          <div className="resource-scroll">
-            {s.seen.map((id) => (
-              <div className="res-cell" key={id}>
-                <Resource id={id} size={19} />
-                <div>
-                  <small>{t.items[id]}</small>
-                  <code>
-                    {fmt(s.stock[id])}{' '}
-                    <em className={(s.net[id] ?? 0) < 0 ? 'low' : ''}>
-                      {(s.net[id] ?? 0) >= 0 ? '+' : ''}
-                      {fmt(s.net[id] ?? 0)}
-                      {t.ui.minute}
-                    </em>
-                  </code>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
+        <Inventory />
         {backup && (
           <section className="panel transfer">
             <div className="panel-heading">
@@ -297,7 +290,7 @@ export function App() {
               {view === 'graph' ? (
                 <Suspense fallback={<div className="graph" />}>
                   <Network
-                    {...{ s, act, selected, focusToken }}
+                    {...{ s, act, selected, focusToken, requestedLink, setRequestedLink }}
                     focus={focusItem}
                     shortages={flows.shortages}
                   />

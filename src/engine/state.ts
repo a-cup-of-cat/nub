@@ -1,3 +1,4 @@
+import type { BeltOverrides } from './belts';
 import { balance } from '../data/balance';
 import { inventory, type Amounts, type ItemId } from '../data/items';
 import { machineIds, type MachineId } from '../data/machines';
@@ -19,6 +20,7 @@ export interface Group {
   units: Unit[];
   utilization: number;
   shortage: ItemId | null;
+  beltLimited?: boolean;
 }
 export interface Order {
   item: ItemId;
@@ -47,6 +49,8 @@ export interface GameState {
   stock: Record<ItemId, number>;
   seen: ItemId[];
   machines: Record<MachineId, Group>;
+  belts: BeltOverrides;
+  beltFlow: Record<string, number>;
   splits: Partial<Record<ItemId, SplitSetting>>;
   gridCapacity: number;
   powerFactor: number;
@@ -90,6 +94,8 @@ export function newGame(seed: number = balance.seed): GameState {
     stock: inventory(),
     seen: ['stone'],
     machines,
+    belts: {},
+    beltFlow: {},
     splits: {},
     gridCapacity: grit.grid,
     powerFactor: 1,

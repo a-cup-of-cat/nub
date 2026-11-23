@@ -4,6 +4,7 @@ import { itemIds } from '../data/items';
 import { machineIds } from '../data/machines';
 import { grit } from '../data/planets';
 import { newGame, message, type GameState } from './state';
+import { validOverrides } from './belts';
 import { tick } from './tick';
 export const saveKey = 'crashstar.grit';
 type Obj = Record<string, unknown>;
@@ -21,6 +22,9 @@ const amounts = (v: unknown, negative = false) =>
   );
 function valid(s: Obj): boolean {
   if (
+    !validOverrides(s.belts) ||
+    !record(s.beltFlow) ||
+    !Object.values(s.beltFlow).every(nonneg) ||
     s.planetId !== 'grit' ||
     s.version !== b.version ||
     s.powerFactor !== 1 ||
@@ -154,6 +158,7 @@ export function migrate(raw: unknown): GameState {
     if (!record(s.stock) || s.planetId !== 'grit') throw Error('legacy');
     s = { ...newGame(), ...s, version: b.version };
   }
+  if (s.version === 1) s = { ...s, version: b.version, belts: {}, beltFlow: {} };
   if (!valid(s)) throw Error('save');
   return s as unknown as GameState;
 }

@@ -5,6 +5,7 @@ import { balance as b } from '../../data/balance';
 import { grit } from '../../data/planets';
 import { quantities } from '../../data/items';
 import { definition } from '../../data/machines';
+import { rateText } from '../common/resourceReadout';
 import { fmt, time } from '../common/display';
 export function lesson(s) {
   if (quantities(grit.goal).every(([id, n]) => (s.goalDelivered[id] ?? 0) >= n))
@@ -85,10 +86,10 @@ export function Echo({ s, flows, focus }) {
                     return (
                       <tr key={id}>
                         <td>{t.items[id]}</td>
-                        <td>{fmt(a)}</td>
-                        <td>{fmt(c)}</td>
-                        <td>{fmt(a - c)}</td>
-                        <td>{fmt(s.net[id] ?? 0)}</td>
+                        <td>{rateText(a)}</td>
+                        <td>{rateText(c)}</td>
+                        <td>{rateText(a - c)}</td>
+                        <td>{rateText(s.net[id] ?? 0)}</td>
                         <td>
                           {a < c
                             ? t.ui.short

@@ -2,7 +2,7 @@ export const balance = {
   step: 0.1,
   minute: 60,
   ms: 1000,
-  version: 1,
+  version: 2,
   seed: 731,
   costGrowth: 1.1,
   baseDiscount: 0.75,

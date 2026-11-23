@@ -48,6 +48,11 @@ describe('灰砾生产与建造', () => {
     install(s, 'furnace_iron', {});
     install(s, 'furnace_copper', {});
     install(s, 'coal_drill', {});
+    // Existing stock reaches processing machines through installed output ports.
+    for (const id of ['iron_drill', 'copper_drill'] as const) {
+      install(s, id, {});
+      s.machines[id].paused = 1;
+    }
     s.stock.coal = 10;
     s.stock.iron_ore = 30;
     s.stock.copper_ore = 3;
