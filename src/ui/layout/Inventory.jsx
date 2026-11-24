@@ -11,9 +11,13 @@ export const Inventory = memo(function Inventory() {
   useEffect(() => {
     let sample = sampleInventory();
     return useGame.subscribe((curr, prev) => {
-      if (curr.offline !== prev.offline && curr.game !== prev.game) {
+      if (curr.game.planetId!==prev.game.planetId || (curr.offline !== prev.offline && curr.game !== prev.game)) {
         sample = sampleInventory();
         setSnapshot(readout(curr.game));
+        return;
+      }
+      if (curr.game.timeSec === prev.game.timeSec && curr.game.stock !== prev.game.stock) {
+        setSnapshot(last => ({ ...last, stock: { ...curr.game.stock }, seen: [...curr.game.seen] }));
         return;
       }
       const v = sample(curr.game, curr.game.timeSec - prev.game.timeSec);

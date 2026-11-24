@@ -3,7 +3,10 @@ import { Plus, Minus, Pause, Play } from 'lucide-react';
 import { zhCN as t } from '../../i18n/zh-CN';
 import { definition } from '../../data/machines';
 import { balance } from '../../data/balance';
-import { canBuild, build, demolish, pause, cost, fits } from '../../engine/build';
+import { canBuild, build, demolish, pause, cost, gridFits, sited } from '../../engine/build';
+import { choices } from '../../data/recipes';
+import { dusk } from '../../data/planets';
+import { operatingRecipe, setRecipe, unlockedRecipe } from '../../engine/recipes';
 import { MachineIcon, Amounts, percent, status, shown } from '../common/display';
 export function Controls({ s, id, act, batch = 1 }) {
   const g = s.machines[id],
@@ -18,7 +21,13 @@ export function Controls({ s, id, act, batch = 1 }) {
         aria-label={t.ui.build + label}
       >
         <Plus size={15} />
-        {fits(s, id) ? t.ui.build : t.ui.space}
+        {s.planetId === 'dusk' && id === 'coal_drill' && g.count >= dusk.coalLimit
+          ? t.dusk.coalCap
+          : !gridFits(s, id)
+            ? t.ui.space
+            : !sited(s, id)
+              ? t.ui.noSite
+              : t.ui.build}
       </button>
       <button
         disabled={!g.count}
@@ -40,7 +49,7 @@ export function Controls({ s, id, act, batch = 1 }) {
   );
 }
 export function MachineInfo({ s, id, act, batch, focus, pressure }) {
-  const d = definition(id),
+  const d = operatingRecipe(s, id),
     g = s.machines[id],
     fraction = g.count ? g.utilization : 0;
   return (
@@ -52,6 +61,25 @@ export function MachineInfo({ s, id, act, batch, focus, pressure }) {
         <strong>{t.machines[id]}</strong>
         <code>×{g.count}</code>
       </div>
+      {s.planetId === 'dusk' && choices(id).some((r) => unlockedRecipe(s, id, r)) && (
+        <select
+          className="nodrag nopan"
+          aria-label={t.dusk.recipe + ' · ' + t.machines[id]}
+          value={g.recipe === 'machine_bed' ? id : g.recipe}
+          onChange={(e) => act((v) => setRecipe(v, id, e.target.value))}
+        >
+          <option value={id}>
+            {id === 'precision_shop' ? t.items.machine_bed : t.dusk.normal}
+          </option>
+          {choices(id)
+            .filter((r) => r !== 'machine_bed' && unlockedRecipe(s, id, r))
+            .map((r) => (
+              <option key={r} value={r}>
+                {t.dusk[r] ?? t.items[r]}
+              </option>
+            ))}
+        </select>
+      )}
       <div className="recipe">
         {Object.keys(d.input).length ? (
           <>
@@ -59,6 +87,12 @@ export function MachineInfo({ s, id, act, batch, focus, pressure }) {
           </>
         ) : null}
         <Amounts values={d.output} perTime />
+        {s.planetId === 'dusk' && d.power !== 0 && (
+          <small>
+            {' '}
+            {d.power < 0 ? t.dusk.generation : t.dusk.load} {Math.abs(d.power)}
+          </small>
+        )}
       </div>
       <div className="meter">
         <i style={{ width: percent(fraction) }} />

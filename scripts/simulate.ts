@@ -1,9 +1,13 @@
+import { simulateDusk } from './dusk';
+import { dusk } from '../src/data/planets';
 import { balance as b } from '../src/data/balance';
 import { definition, goldenLine, machineIds, type MachineId } from '../src/data/machines';
 import { quantities } from '../src/data/items';
 import { build, canBuild, cost, mine, usedGrid } from '../src/engine/build';
 import { newGame } from '../src/engine/state';
-import { analysis } from '../src/engine/rates';
+import { analysis, rates } from '../src/engine/rates';
+import { autoLane, craftBelts, network, quoteBelts, setBelts } from '../src/engine/belts';
+import { transport as cfg } from '../src/data/transport';
 import { deliverGoal, progress, choose, leaveMerchant } from '../src/engine/merchant';
 import { tick } from '../src/engine/tick';
 import { writeTimeline } from './timeline.mjs';
@@ -60,6 +64,27 @@ export function simulate() {
         log('build_' + id);
       }
     }
+    // Lay belts like a player would: enough independent lanes for each link's full demand,
+    // crafting belt pieces from stone when the stockpile runs short.
+    for (const pair of network(s).active) {
+      const demand = rates(s, pair.target).input[pair.item] ?? 0,
+        wanted = Math.min(
+          cfg.maxBeltsPerPair,
+          Math.max(1, Math.ceil(demand / cfg.capacityPerMinute - b.epsilon)),
+        );
+      while ((s.belts[pair.key] ?? []).length < wanted) {
+        const via = autoLane(s, pair),
+          lanes = [...(s.belts[pair.key] ?? []), ...(via ? [via] : [])];
+        const quote = via && quoteBelts(s, pair, lanes);
+        if (!quote) break;
+        const missing = quote.delta - Math.floor(s.stock.belt + b.epsilon);
+        if (missing > 0) s = craftBelts(s, Math.ceil(missing / cfg.craftYield));
+        const laid = setBelts(s, pair, lanes);
+        if (laid === s) break;
+        s = laid;
+        log('belt_' + pair.key);
+      }
+    }
     const before = progress(s);
     s = deliverGoal(s);
     if (progress(s) > before) log('deliver');
@@ -86,3 +111,23 @@ console.log(
 console.log('交付', Object.fromEntries(quantities(state.goalDelivered)));
 if (minutes < b.targetMin || minutes > b.targetMax || state.merchant.stage !== 'finished')
   console.warn('警告：未达到规格中的通关时间范围，请策划复核。');
+
+if (state.merchant.stage === 'finished') {
+  const result = simulateDusk(state);
+  writeTimeline(result.rows.join('\n') + '\n', 'simulation-dusk.csv');
+  const elapsed = result.state.timeSec / b.minute;
+  console.log(
+    '晨昏模拟',
+    elapsed.toFixed(2),
+    '分钟',
+    result.state.goalDelivered,
+    '进度',
+    progress(result.state),
+  );
+  if (
+    elapsed < dusk.targetMinutes[0] ||
+    elapsed > dusk.targetMinutes[1] ||
+    result.state.merchant.stage !== 'finished'
+  )
+    console.warn('警告：晨昏未达到 40–70 分钟验收范围。');
+}

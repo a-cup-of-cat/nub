@@ -3,7 +3,6 @@ import {
   Boxes,
   Cpu,
   CircuitBoard,
-  Hexagon,
   Layers3,
   Mountain,
   Factory,
@@ -14,6 +13,7 @@ import {
   Cog,
   Microchip,
   Waypoints,
+  CassetteTape,
 } from 'lucide-react';
 import { rateText } from './resourceReadout';
 import { items, quantities } from '../../data/items';
@@ -33,7 +33,7 @@ const shapes = {
   ingot: Layers3,
   part: Cog,
   electronic: CircuitBoard,
-  component: Hexagon,
+  component: CassetteTape,
 };
 export function Resource({ id, size = 15 }) {
   const Icon = shapes[items[id].shape] ?? Boxes;
@@ -41,6 +41,7 @@ export function Resource({ id, size = 15 }) {
 }
 const glyphs = {
   crusher: Pickaxe,
+  belt_assembler: CassetteTape,
   iron_drill: Drill,
   copper_drill: Drill,
   coal_drill: Drill,
@@ -82,6 +83,10 @@ export function Amounts({ values, stock, perTime = false }) {
 }
 export function status(s, id) {
   const g = s.machines[id];
+  if(s.planetId==='dusk' && g.count>g.paused && !g.shortage){
+    if(id==='solar_station' && !g.utilization)return t.dusk.noCharge;
+    if(definition(id).power>0 && s.powerFactor<1)return t.dusk.powerOff;
+  }
   return !g.count
     ? t.ui.idle
     : g.paused === g.count

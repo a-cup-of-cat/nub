@@ -1,22 +1,34 @@
 import { balance as b } from '../data/balance';
-import { cards, cardIds, type CardId } from '../data/cards';
+import { cards, cardIds, powerCards, type CardId } from '../data/cards';
 import { items, quantities, rawItems, type ItemId } from '../data/items';
 import type { MachineId } from '../data/machines';
 import { shop, type Product } from '../data/shop';
-import { grit } from '../data/planets';
+import { drawings, variants, type Drawing } from '../data/recipes';
+import { planets, visits, dusk } from '../data/planets';
 import { available, cost, fits, install } from './build';
 import { message, random, type GameState } from './state';
+function goalWeight(id: ItemId) {
+  if (id !== 'machine_bed' && id !== 'servo' && id !== 'cnc') return 0;
+  const recipe = variants[id];
+  return (
+    quantities(recipe.input).reduce((v, [k, n]) => v + n * (items[k].value ?? 0), 0) /
+    quantities(recipe.output)[0][1]
+  );
+}
 export function progress(s: GameState) {
   let value = 0,
     total = 0;
-  for (const [id, goal] of quantities(grit.goal)) {
-    value += (s.goalDelivered[id] ?? 0) * items[id].value;
-    total += goal * items[id].value;
+  for (const [id, goal] of quantities(planets[s.planetId].goal)) {
+    const weight = items[id].value ?? goalWeight(id);
+    value += (s.goalDelivered[id] ?? 0) * weight;
+    total += goal * weight;
   }
   return value / total;
 }
 export function draw(s: GameState) {
-  const pool = cardIds.filter((id) => !s.cards.includes(id)),
+  const pool = cardIds.filter(
+      (id) => !s.cards.includes(id) && (s.planetId === 'dusk' || !powerCards.includes(id)),
+    ),
     offers: CardId[] = [];
   const count = s.cards.includes('merchant_friend') ? b.extraCardCount : b.cardCount;
   while (pool.length && offers.length < count) {
@@ -36,25 +48,26 @@ export function draw(s: GameState) {
 }
 function arrive(s: GameState, farewell: boolean) {
   const m = s.merchant;
+  if (!farewell) s.visits++;
   m.stage = farewell ? 'farewell' : 'docked';
   m.picked = farewell;
   m.rerolls = 0;
   m.offers = farewell ? [] : draw(s);
   m.prices = {};
   m.sold = {};
-  const pool = [...s.seen],
+  const pool = s.seen.filter((k) => items[k].value !== null),
     count = b.buyListMin + Math.floor(random(s) * (b.buyListMax - b.buyListMin + 1));
   for (let i = 0; i < count && pool.length; i++) {
     const item = pool.splice(Math.floor(random(s) * pool.length), 1)[0];
     m.prices[item] =
-      (items[item].value / b.priceDivisor) * (b.buyMin + random(s) * (b.buyMax - b.buyMin));
+      ((items[item].value ?? 0) / b.priceDivisor) * (b.buyMin + random(s) * (b.buyMax - b.buyMin));
   }
   message(s, farewell ? 'repair' : 'arrival');
 }
 export function deliverGoal(s: GameState, item?: ItemId) {
   const n = structuredClone(s);
   let changed = false;
-  for (const [id, target] of quantities(grit.goal)) {
+  for (const [id, target] of quantities(planets[s.planetId].goal)) {
     if (item && id !== item) continue;
     const paid = n.goalDelivered[id] ?? 0,
       amount = Math.min(Math.floor(n.stock[id] + b.epsilon), target - paid);
@@ -66,9 +79,14 @@ export function deliverGoal(s: GameState, item?: ItemId) {
   }
   if (!changed) return s;
   // SPEC-GAP: 若一次交付跨过两个门槛，先保留普通来访，关闭后立即进入临别特卖。
-  if (n.merchant.stage === 'away' && progress(n) >= grit.visitProgress) arrive(n, false);
-  else if (n.merchant.stage === 'departed' && progress(n) >= 1) arrive(n, true);
+  nextVisit(n);
   return n;
+}
+function nextVisit(s: GameState) {
+  if (s.merchant.stage !== 'away' && s.merchant.stage !== 'departed') return;
+  const threshold = visits[s.planetId][s.visits];
+  if (threshold !== undefined && progress(s) >= threshold) arrive(s, false);
+  else if (progress(s) >= 1) arrive(s, true);
 }
 export const trading = (s: GameState) =>
   s.merchant.stage === 'docked' || s.merchant.stage === 'farewell';
@@ -80,11 +98,13 @@ export function leaveMerchant(s: GameState) {
     return n;
   }
   n.merchant.stage = 'departed';
-  if (progress(n) >= 1) arrive(n, true);
+  nextVisit(n);
   return n;
 }
 export const rerollCost = (s: GameState) =>
-  b.reroll * b.rerollGrowth ** (s.cards.includes('haggle') ? 0 : s.merchant.rerolls);
+  (s.planetId === 'dusk' ? dusk.priceFactor : 1) *
+  b.reroll *
+  b.rerollGrowth ** (s.cards.includes('haggle') ? 0 : s.merchant.rerolls);
 export function reroll(s: GameState) {
   const price = rerollCost(s);
   if (s.merchant.stage !== 'docked' || s.merchant.picked || s.credits < price) return s;
@@ -113,7 +133,7 @@ export function price(s: GameState, p: Product, id: MachineId = 'crusher') {
       break;
     case 'buy_machine':
       v =
-        quantities(cost(s, id)).reduce((sum, [k, n]) => sum + items[k].value * n, 0) /
+        quantities(cost(s, id)).reduce((sum, [k, n]) => sum + (items[k].value ?? 0) * n, 0) /
         shop[p].divisor;
       break;
     case 'valve':
@@ -127,6 +147,9 @@ export function price(s: GameState, p: Product, id: MachineId = 'crusher') {
   }
   return (
     v *
+    (s.planetId === 'dusk' && !['bp_slot', 'bp_recorder', 'archive', 'supply_pod'].includes(p)
+      ? dusk.priceFactor
+      : 1) *
     (s.cards.includes('haggle') ? cards.haggle.effect : 1) *
     (s.merchant.stage === 'farewell' ? b.clearance : 1)
   );
@@ -136,9 +159,14 @@ export function purchasable(
   p: Product,
   id: MachineId = 'crusher',
   item: ItemId = 'stone',
+  drawing: Drawing = drawings[0],
 ) {
   if (!trading(s) || s.credits + b.epsilon < price(s, p, id)) return false;
   switch (p) {
+    case 'blueprint_card':
+      return s.planetId === 'dusk' && drawings.includes(drawing) && !s.drawings.includes(drawing);
+    case 'emergency_battery':
+      return s.planetId === 'dusk' && !s.batterySeconds;
     case 'buy_machine':
       return available(s, id) && fits(s, id);
     case 'valve':
@@ -155,11 +183,23 @@ export function purchasable(
       return true;
   }
 }
-export function buy(s: GameState, p: Product, id: MachineId = 'crusher', item: ItemId = 'stone') {
-  if (!purchasable(s, p, id, item)) return s;
+export function buy(
+  s: GameState,
+  p: Product,
+  id: MachineId = 'crusher',
+  item: ItemId = 'stone',
+  drawing: Drawing = drawings[0],
+) {
+  if (!purchasable(s, p, id, item, drawing)) return s;
   const n = structuredClone(s);
   n.credits = Math.max(0, n.credits - price(s, p, id));
   switch (p) {
+    case 'blueprint_card':
+      n.drawings.push(drawing);
+      break;
+    case 'emergency_battery':
+      n.batterySeconds = shop.emergency_battery.seconds;
+      break;
     case 'grid_plus':
       n.gridCapacity += shop[p].amount;
       n.gridUpgrades++;
@@ -201,7 +241,7 @@ export function salePrice(
 ) {
   const base = black
     ? s.cards.includes('black_market')
-      ? items[item].value / b.priceDivisor
+      ? (items[item].value ?? 0) / b.priceDivisor
       : 0
     : trading(s)
       ? (s.merchant.prices[item] ?? 0)

@@ -11,6 +11,17 @@ export const items = {
   wafer: { value: 4, shape: 'electronic' },
   circuit: { value: 12, shape: 'electronic' },
   chip: { value: 50, shape: 'electronic' },
+  belt: { value: 0.05, shape: 'component' },
+  bauxite: { value: 1, shape: 'ore' },
+  glass: { value: 2.5, shape: 'ingot' },
+  aluminum: { value: 4, shape: 'ingot' },
+  steel: { value: 6, shape: 'ingot' },
+  motor: { value: 22, shape: 'component' },
+  solar_panel: { value: 25, shape: 'component' },
+  machine_bed: { value: null, shape: 'component' },
+  servo: { value: null, shape: 'component' },
+  cnc: { value: null, shape: 'electronic' },
+  plastic: { value: 3, shape: 'ingot' },
 } as const;
 export type ItemId = keyof typeof items;
 export type Amounts = Partial<Record<ItemId, number>>;

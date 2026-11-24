@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Ship, ShoppingBag, Ticket, X } from 'lucide-react';
 import { zhCN as t } from '../../i18n/zh-CN';
 import { cards } from '../../data/cards';
+import { carryLimit } from '../../engine/travel';
+import { items } from '../../data/items';
+import { drawings } from '../../data/recipes';
 import { shop } from '../../data/shop';
 import { machineIds } from '../../data/machines';
 import { available } from '../../engine/build';
@@ -19,7 +22,9 @@ import {
 import { fmt, fmtPrice } from '../common/display';
 export function Sales({ s, act, black = false }) {
   const [amount, setAmount] = useState({});
-  const pool = black ? s.seen : Object.keys(s.merchant.prices);
+  const pool = black
+    ? s.seen.filter((id) => items[id].value !== null)
+    : Object.keys(s.merchant.prices);
   return (
     <section>
       <h3>{black ? t.ui.black : t.ui.market}</h3>
@@ -63,6 +68,7 @@ export function Sales({ s, act, black = false }) {
 export function Trade({ s, act, onClose }) {
   const dialog = useRef(null),
     [machine, setMachine] = useState('crusher'),
+    [drawing, setDrawing] = useState(drawings.find((d) => !s.drawings.includes(d)) ?? drawings[0]),
     [item, setItem] = useState(s.seen[0]),
     [confirm, setConfirm] = useState(false);
   const fare = s.merchant.stage === 'farewell';
@@ -101,6 +107,12 @@ export function Trade({ s, act, onClose }) {
         <Ticket size={16} />
         {t.ui.credits} <b>{fmt(s.credits)}</b>
       </div>
+      {fare && s.planetId === 'grit' && (
+        <p>
+          {t.dusk.carry} {fmt(Math.min(carryLimit(s), s.credits))} / {fmt(carryLimit(s))} ·{' '}
+          {t.dusk.carryHint}
+        </p>
+      )}
       {!fare && (
         <section>
           <div className="section-heading">
@@ -140,53 +152,76 @@ export function Trade({ s, act, onClose }) {
         <h3>
           <ShoppingBag size={16} /> {t.ui.shop}
         </h3>
-        {Object.keys(shop).map((p) => (
-          <div className="product" key={p}>
-            <label>
-              {t.shop[p]}
-              {p === 'buy_machine' && (
-                <select
-                  aria-label={t.ui.selectMachine}
-                  value={machine}
-                  onChange={(e) => setMachine(e.target.value)}
-                >
-                  {machineIds
-                    .filter((id) => available(s, id))
-                    .map((id) => (
-                      <option key={id} value={id}>
-                        {t.machines[id]}
+        {Object.keys(shop)
+          .filter(
+            (p) => s.planetId === 'dusk' || !['blueprint_card', 'emergency_battery'].includes(p),
+          )
+          .map((p) => (
+            <div className="product" key={p}>
+              <label>
+                {t.shop[p]}
+                {p === 'blueprint_card' && (
+                  <select
+                    aria-label={t.shop.blueprint_card}
+                    value={drawing}
+                    onChange={(e) => setDrawing(e.target.value)}
+                  >
+                    {drawings.map((d) => (
+                      <option key={d} value={d} disabled={s.drawings.includes(d)}>
+                        {t.dusk[d]}
                       </option>
                     ))}
-                </select>
-              )}
-              {p === 'valve' && (
-                <select
-                  aria-label={t.ui.selectItem}
-                  value={item}
-                  onChange={(e) => setItem(e.target.value)}
-                >
-                  {s.seen.map((id) => (
-                    <option key={id} value={id}>
-                      {t.items[id]}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </label>
-            <button
-              disabled={!purchasable(s, p, machine, item)}
-              onClick={() => act((v) => buy(v, p, machine, item))}
-            >
-              {t.ui.buy} · {fmt(price(s, p, machine))}
-            </button>
-          </div>
-        ))}
+                  </select>
+                )}
+                {p === 'buy_machine' && (
+                  <select
+                    aria-label={t.ui.selectMachine}
+                    value={machine}
+                    onChange={(e) => setMachine(e.target.value)}
+                  >
+                    {machineIds
+                      .filter((id) => available(s, id))
+                      .map((id) => (
+                        <option key={id} value={id}>
+                          {t.machines[id]}
+                        </option>
+                      ))}
+                  </select>
+                )}
+                {p === 'valve' && (
+                  <select
+                    aria-label={t.ui.selectItem}
+                    value={item}
+                    onChange={(e) => setItem(e.target.value)}
+                  >
+                    {s.seen.map((id) => (
+                      <option key={id} value={id}>
+                        {t.items[id]}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </label>
+              <button
+                disabled={!purchasable(s, p, machine, item, drawing)}
+                onClick={() => act((v) => buy(v, p, machine, item, drawing))}
+              >
+                {t.ui.buy} · {fmt(price(s, p, machine))}
+              </button>
+            </div>
+          ))}
       </section>
       <Sales {...{ s, act }} />
       <footer>
         {confirm && !s.merchant.picked && <span>{t.ui.chooseBefore}</span>}
         <button className="primary" onClick={close}>
-          {fare ? t.ui.finish : confirm && !s.merchant.picked ? t.ui.skip : t.ui.depart}
+          {fare
+            ? s.planetId === 'grit'
+              ? t.ui.finish
+              : t.dusk.fare
+            : confirm && !s.merchant.picked
+              ? t.ui.skip
+              : t.ui.depart}
         </button>
       </footer>
     </dialog>

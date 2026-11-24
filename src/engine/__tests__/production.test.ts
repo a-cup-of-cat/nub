@@ -7,6 +7,7 @@ import { cost, build, canBuild, install, demolish, mine, usedGrid, pause } from 
 import { allocate } from '../allocation';
 import { rates } from '../rates';
 import { tick } from '../tick';
+import { connectAll } from './helpers';
 
 describe('灰砾生产与建造', () => {
   it('从空仓手挖十次，建碎石机，六十秒产出六十石头', () => {
@@ -56,7 +57,7 @@ describe('灰砾生产与建造', () => {
     s.stock.coal = 10;
     s.stock.iron_ore = 30;
     s.stock.copper_ore = 3;
-    const n = tick(s, 60);
+    const n = tick(connectAll(s), 60);
     expect(n.stock.iron_ingot).toBe(15);
     expect(n.stock.copper_ingot).toBe(3);
     expect(n.stock.coal).toBe(34);
@@ -97,6 +98,7 @@ describe('灰砾生产与建造', () => {
     for (const id of itemIds) s.stock[id] = 500;
     for (const [id, n] of Object.entries(goldenLine))
       for (let i = 0; i < n!; i++) install(s, id as MachineId, {});
+    s = connectAll(s);
     const fiveMinutes = 5 * b.minute;
     for (let i = 0; i < fiveMinutes / b.step; i++) s = tick(s);
     const snapshot = { ...s.stock };

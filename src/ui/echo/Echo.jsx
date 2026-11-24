@@ -8,6 +8,7 @@ import { definition } from '../../data/machines';
 import { rateText } from '../common/resourceReadout';
 import { fmt, time } from '../common/display';
 export function lesson(s) {
+  if (s.planetId==='dusk')return t.tutorial.length;
   if (quantities(grit.goal).every(([id, n]) => (s.goalDelivered[id] ?? 0) >= n))
     return t.tutorial.length;
   if (s.mined < definition('crusher').cost.stone && !s.machines.crusher.built) return 0;
@@ -44,7 +45,7 @@ export function Echo({ s, flows, focus }) {
             <path d="M0 21h15l3-3 3 5 4-2h8l3-7 3 12 4-5h7l3-4 3 8 4-17 4 26 4-19 4 6h10l3-3 3 5 5-2h7l3-7 3 12 4-7 5 2h12l4-4 3 7 4-3h12" />
           </svg>
         </div>
-        <blockquote key={fixed ? t.echo.fixed : opening}>
+        <blockquote key={s.planetId==='dusk'?t.planets.dusk.brief:fixed ? t.echo.fixed : opening}>
           {fixed ? t.echo.fixed : opening}
         </blockquote>
         {hints.map((h) => (
@@ -134,7 +135,7 @@ export function Echo({ s, flows, focus }) {
               .reverse()
               .map((m, i) => (
                 <li key={i}>
-                  <code>{time(m.time)}</code> {t.echo[m.key]}{' '}
+                  <code>{time(m.time)}</code> {s.planetId==='dusk' && m.key==='repair'?t.dusk.end:t.echo[m.key]}{' '}
                   {m.amount === undefined ? '' : fmt(m.amount)}
                 </li>
               ))}

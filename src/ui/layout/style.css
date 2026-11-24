@@ -1170,7 +1170,7 @@ summary {
 }
 .stock-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 166px), 1fr));
+  grid-template-columns: repeat(auto-fill, min(100%, clamp(144px, 12vw, 168px)));
   gap: 8px;
 }
 .stock-card {
@@ -1286,64 +1286,359 @@ summary {
 .waypoint-input {
   align-items: end;
 }
-.placing .react-flow__pane {
+/* ---- Production map: shared ---- */
+:root {
+  --grid-line: #2f3631;
+  --ground: #2a2c26;
+  --ground-dot: #3a3b33;
+  --belt-rim: #1f2624;
+  --belt-deck: #4b5550;
+  --belt-rib: #8d988f;
+  --belt-line: #9fb8c2;
+  --port-in: #8abd9a;
+  --port-out: #f3bc73;
+}
+.graph.view-mode {
+  background: radial-gradient(circle at 30% 20%, #33352d, var(--ground) 60%);
+}
+.graph.drawing .react-flow__pane,
+.graph.drawing .react-flow__node {
   cursor: crosshair;
+}
+.graph.drawing .react-flow__edges,
+.graph.drawing .react-flow__edges * {
+  pointer-events: none !important;
+}
+.sprite-library {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.hidden-handle {
+  opacity: 0;
+  pointer-events: none;
+}
+.belt-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 22px;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+/* ---- Build mode: grid, plain frames and ports ---- */
+.factory-node {
+  position: relative;
+  border-radius: 4px;
+}
+.factory-node.schematic {
+  border: 2px solid var(--dim);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+.factory-node.schematic.ghost {
+  border-style: dashed;
+  opacity: 0.7;
+  cursor: grab;
+}
+.factory-node .machine-plate {
+  position: absolute;
+  left: 50%;
+  top: 6px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+  max-width: calc(100% - 12px);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.factory-node .machine-plate span,
+.factory-node .machine-plate code {
+  font: 11px var(--mono);
+  color: var(--muted);
+}
+.schematic-size {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  font: 10px var(--mono);
+  color: var(--dim);
+}
+.material-port {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  padding: 1px;
+  transform: translate(-50%, -50%);
+  border-radius: 4px;
+  border: 2px solid var(--port-in);
+  background: var(--inset);
+  z-index: 2;
+}
+.material-port.in {
+  left: 0;
+}
+.material-port.out {
+  left: 100%;
+  border-color: var(--port-out);
+}
+.material-port svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.material-port:hover,
+.material-port.fits,
+.material-port.origin {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 45%, transparent);
+}
+.material-port.hinted {
+  box-shadow: 0 0 0 4px var(--amber);
+}
+.port-label {
+  position: absolute;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.port-label.in {
+  left: 16px;
+}
+.port-label.out {
+  right: 16px;
+}
+.schematic-belt path {
+  fill: none;
+}
+.schematic-belt .belt-line {
+  stroke: var(--belt-line);
+  stroke-width: 4px;
+  stroke-linejoin: miter;
+}
+.schematic-belt.selected .belt-line {
+  stroke: var(--amber);
+  stroke-width: 6px;
+}
+.belt-arrow {
+  fill: none;
+  stroke: var(--bg);
+  stroke-width: 2px;
+}
+.stroke-preview {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.stroke-preview path {
+  fill: none;
+  stroke-width: 5px;
+  stroke-dasharray: 8 5;
+  stroke: var(--ok);
+}
+.stroke-preview path.bad {
+  stroke: var(--short);
+}
+.stroke-preview circle {
+  fill: var(--panel);
+  stroke: var(--ok);
+  stroke-width: 2px;
+}
+.stroke-preview.picked path {
+  stroke: var(--amber);
+  stroke-dasharray: none;
+  stroke-width: 10px;
+  opacity: 0.35;
+}
+.build-hud {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 5;
+  max-width: min(440px, calc(100% - 70px));
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.build-hud p {
+  margin: 0;
+}
+.build-hud b {
+  font-family: var(--mono);
+}
+.build-hud .muted {
+  color: var(--muted);
+}
+.build-hud .low,
+.belt-stock.low {
+  color: var(--short);
+}
+.hud-notice {
+  color: var(--amber);
+}
+.hud-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hud-actions button {
+  font-size: 12px;
+  padding-inline: 8px;
+}
+.belt-stock {
+  font-size: 12px;
+  color: var(--muted);
+  margin-right: auto;
+}
+.belt-stock b {
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+/* ---- View mode: cartoon machines, moving belts ---- */
+.factory-node.illustrated {
+  background: transparent;
+}
+.factory-node.illustrated.ghost {
+  opacity: 0.45;
+  outline: 2px dashed var(--dim);
+  outline-offset: 2px;
+}
+.factory-node.illustrated .machine-plate {
+  top: auto;
+  bottom: 3px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: #1a201dcc;
+}
+.factory-node.highlight {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+.factory-node.border-short.illustrated .machine-plate {
+  box-shadow: inset 0 -2px 0 var(--short);
+}
+.factory-node.border-tight.illustrated .machine-plate {
+  box-shadow: inset 0 -2px 0 var(--tight);
+}
+.factory-node.border-ok.illustrated .machine-plate {
+  box-shadow: inset 0 -2px 0 var(--ok);
+}
+.factory-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.node-meter {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 2px;
+  height: 4px;
+  border-radius: 2px;
+  background: #00000055;
+  overflow: hidden;
+}
+.node-meter i {
+  display: block;
+  height: 100%;
+  background: var(--ok);
+}
+.node-alert {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  white-space: nowrap;
+  color: var(--bg);
+  background: var(--tight);
+}
+.port-hatch {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  transform: translate(-50%, -50%);
+  border-radius: 3px;
+  background: #1d2421;
+  border: 2px solid #56615b;
+  pointer-events: none;
+}
+.port-hatch.in {
+  left: 0;
+}
+.port-hatch.out {
+  left: 100%;
+}
+.port-hatch svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 .physical-belt path {
   fill: none;
   stroke-linejoin: round;
+  stroke-linecap: square;
+}
+.belt-shadow {
+  stroke: #0c100e66;
+  stroke-width: 22px;
+  transform: translate(2px, 3px);
 }
 .belt-rim {
-  stroke: var(--dim);
-  stroke-width: 14px;
+  stroke: var(--belt-rim);
+  stroke-width: 18px;
 }
 .belt-deck {
-  stroke: var(--inset);
-  stroke-width: 11px;
+  stroke: var(--belt-deck);
+  stroke-width: 13px;
 }
 .belt-ribs {
-  stroke: var(--muted);
-  stroke-width: 8px;
-  stroke-dasharray: 1 7;
-  opacity: 0.65;
+  stroke: var(--belt-rib);
+  stroke-width: 13px;
+  stroke-dasharray: 2 6;
+  opacity: 0.55;
 }
-.belt-arrow {
-  stroke: var(--amber);
-  stroke-width: 2px;
+.belt-shine {
+  stroke: #ffffff;
+  stroke-width: 1.5px;
+  opacity: 0.12;
 }
-.belt-hit {
-  stroke: transparent;
-  stroke-width: 24px;
-  pointer-events: stroke;
-  cursor: pointer;
-}
-.physical-belt.selected .belt-rim {
-  stroke: var(--planet-accent);
-}
-.physical-belt.draft {
-  pointer-events: none;
-}
-.physical-belt.draft .belt-rim {
-  stroke: var(--ok);
-  stroke-dasharray: 7 4;
-}
-.physical-belt.draft .belt-arrow {
-  stroke: var(--ok);
-}
-.belt-label {
+.node-inspector {
   position: absolute;
-  pointer-events: auto;
-  min-height: 26px;
-  border-radius: 4px;
-  font-size: 11px;
-  background: var(--inset);
-  color: var(--text);
-  white-space: nowrap;
-  padding: 0 7px;
+  right: 10px;
+  top: 10px;
+  z-index: 5;
+  width: min(300px, calc(100% - 70px));
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
 }
-.draft-label {
-  pointer-events: none;
-  color: var(--ok);
+.node-inspector .machine-title {
+  padding-right: 24px;
+}
+.inspector-close {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  min-height: 0;
+  padding: 3px;
+  background: transparent;
+  border-color: transparent;
 }
 .graph-card {
   display: flex;
@@ -1375,18 +1670,61 @@ summary {
   flex: 1 0 44vh;
 }
 @media (prefers-reduced-motion: no-preference) {
+  /* Duration is set inline from transport.visualSpeed; one cycle moves the ribs one dash period. */
   .physical-belt.moving .belt-ribs {
-    animation: belt-run 1s linear infinite;
+    animation: belt-run 0.17s linear infinite;
   }
   @keyframes belt-run {
     to {
-      stroke-dashoffset: -16;
+      stroke-dashoffset: -8;
+    }
+  }
+  .factory-node.working .machine-body {
+    animation: machine-hum 0.9s ease-in-out infinite;
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+  }
+  @keyframes machine-hum {
+    50% {
+      transform: translateY(-1.5px) scaleY(1.01);
+    }
+  }
+  .factory-node.working .steam circle {
+    animation: steam-rise 1.6s ease-out infinite;
+  }
+  .factory-node.working .steam circle + circle {
+    animation-delay: 0.8s;
+  }
+  @keyframes steam-rise {
+    from {
+      opacity: 0.9;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+  }
+  .factory-node.working .drive-light {
+    animation: drive-blink 1.2s steps(2) infinite;
+  }
+  @keyframes drive-blink {
+    50% {
+      opacity: 0.3;
+    }
+  }
+  .factory-node.working .port-hatch.out {
+    animation: hatch-pulse 1s ease-in-out infinite;
+  }
+  @keyframes hatch-pulse {
+    50% {
+      border-color: var(--port-out);
     }
   }
 }
 @media (max-width: 767px) {
   .stock-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, min(100%, clamp(126px, 38vw, 158px)));
   }
   .stat:first-child {
     position: static;
@@ -1408,23 +1746,66 @@ summary {
   }
 }
 
-/* In placement mode every track tile can be picked, including an occupied segment. */
-.placing .react-flow__edges,
-.placing .react-flow__edges *,
-.placing .belt-label {
-  pointer-events: none !important;
-}
-
-.belt-pin circle {
-  fill: var(--panel);
-  stroke: var(--ok);
-  stroke-width: 2px;
-}
-.belt-pin text {
-  fill: var(--text);
-  font: 12px var(--mono);
-}
 .belt-toolbar select {
   max-width: 100%;
   min-width: 0;
 }
+
+.list-scroll section {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: 6px;
+}
+.list-scroll h3 { grid-column: 1 / -1; padding-bottom: 2px; }
+.list-scroll .machine-row {
+  max-width: 244px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  margin: 0;
+  min-width: 0;
+}
+.list-scroll .machine-row > * { margin-block: 0; }
+.list-scroll .machine-icon { width: 23px; height: 23px; }
+.list-scroll .machine-title { gap: 5px; }
+.list-scroll .machine-title strong { font-size: 13px; }
+.list-scroll .machine-actions { margin-top: auto; }
+.list-scroll .recipe, .list-scroll .cost { line-height: 1.4; }
+.workbench { margin-top: 12px; padding: 12px; }
+.workbench .panel-heading { flex-wrap: wrap; gap: 10px; }
+.craft-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 178px), 216px));
+  gap: 8px;
+  margin-top: 8px;
+}
+.craft-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 5px;
+  padding: 9px;
+  background: var(--inset);
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  font-size: 12px;
+}
+.craft-card h3 { grid-column: 1 / -1; display: flex; align-items: center; gap: 5px; font-size: 14px; margin: 0; }
+.craft-card h3 code { margin-left: auto; }
+.craft-card small { grid-column: 1 / -1; color: var(--short); }
+.workbench p { margin: 8px 0 0; font-size: 12px; color: var(--ok); }
+.belt-help { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 8px 12px; background: var(--inset); }
+.belt-help p { margin: 0; font-size: 12px; line-height: 1.55; color: var(--muted); }
+.hud-notice { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+
+.dusk.day {--planet-accent:#f6ba73;--planet-bg:#473129}
+.dusk.night {--planet-accent:#b7a2ed;--planet-bg:#251e36}
+.dusk .hero {background-image:linear-gradient(85deg,var(--planet-bg),transparent 75%),url('../../../public/images/planets/dusk.svg'),linear-gradient(0deg,#e6ae7f,#8f635f)}
+.dusk.night .hero {background-image:linear-gradient(85deg,var(--planet-bg),transparent),linear-gradient(0deg,#291b4a75,transparent),url('../../../public/images/planets/dusk.svg'),linear-gradient(0deg,#725c83,#26263c)}
+.power-strip,.blueprint-row,.blueprint-panel form,.split-row {display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.power-strip {background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--planet-accent);padding:8px 12px;margin-top:10px;font-size:13px}
+.power-strip button {margin-left:auto}.power-strip.short strong {color:var(--short)}
+.blueprint-panel summary {cursor:pointer;font-weight:bold}.blueprint-panel form,.split-row,.blueprint-row {margin-top:8px}
+.blueprint-panel input {max-width:100%}.blueprint-row small,.split-row form small {flex-basis:100%;color:var(--muted)}
+.split-row input {width:4em}.split-row label {font-size:13px}

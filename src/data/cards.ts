@@ -19,6 +19,18 @@ export const cards = {
   automation_core: { tier: 'legendary', family: '', effect: 1.5 },
   black_market: { tier: 'legendary', family: '' },
   quantum_copy: { tier: 'legendary', family: '', effect: 1.05 },
+  boost_power: { tier: 'common', family: '', effect: 1.2 },
+  arc_furnace: { tier: 'rare', family: 'power', power: 8 },
+  heat_recovery: { tier: 'rare', family: 'power', power: 2 },
+  battery_bank: { tier: 'rare', family: 'power', capacity: 200 },
+  superconductor: { tier: 'rare', family: 'power', threshold: 1.2, effect: 1.15 },
 } as const;
+export const powerCards: readonly CardId[] = [
+  'boost_power',
+  'arc_furnace',
+  'heat_recovery',
+  'battery_bank',
+  'superconductor',
+];
 export type CardId = keyof typeof cards;
 export const cardIds = Object.keys(cards) as CardId[];

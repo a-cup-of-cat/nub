@@ -1,5 +1,7 @@
 export const shop = {
   grid_plus: { price: 80, growth: 1.3, amount: 4 },
+  blueprint_card: { price: 150 },
+  emergency_battery: { price: 40, seconds: 60, power: 50 },
   overtime: { price: 60, multiplier: 1.5, minutes: 10 },
   supply_crate: { price: 50, amount: 200 },
   buy_machine: { divisor: 5 },

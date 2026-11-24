@@ -4,6 +4,7 @@ import {
   Radio,
   HardDrive,
   Pickaxe,
+  Hammer,
   LayoutGrid,
   Timer,
   Ticket,
@@ -26,10 +27,15 @@ import { rawItems, quantities } from '../../data/items';
 import { machineIds, definition } from '../../data/machines';
 import { cards } from '../../data/cards';
 import { usedGrid, mine } from '../../engine/build';
-import { pairs } from '../../engine/belts';
+import { pairs, sockets } from '../../engine/belts';
 import { analysis } from '../../engine/rates';
 import { serialize } from '../../engine/save';
 import { trading } from '../../engine/merchant';
+import { landOnDusk, carryLimit } from '../../engine/travel';
+import { daylight, untilChange } from '../../engine/power';
+import { Blueprints } from './Blueprints';
+import { SplitControls } from '../list/SplitControls';
+import { Workbench } from './Workbench';
 import { Inventory } from './Inventory';
 import { fmt, time } from '../common/display';
 const Network = lazy(() => import('../graph/Network').then((m) => ({ default: m.Network })));
@@ -47,6 +53,7 @@ export function App() {
   const { game: s, act, notice, offline, importSave } = useGame(),
     [view, setView] = useState('graph'),
     [tab, setTab] = useState('factory'),
+    [workbench, setWorkbench] = useState(false),
     [trade, setTrade] = useState(false),
     [backup, setBackup] = useState(false),
     [raw, setRaw] = useState(''),
@@ -55,6 +62,7 @@ export function App() {
     [selected, setSelected] = useState(null),
     [focusToken, setFocusToken] = useState(0),
     [requestedLink, setRequestedLink] = useState(null);
+  const dusk = s.planetId === 'dusk';
   const transfer = useRef(null),
     ending = useRef(null),
     stage = s.merchant.stage;
@@ -79,7 +87,7 @@ export function App() {
       setRequestedLink(link.key);
       return;
     }
-    const producer = machineIds.find((m) => item in definition(m).output);
+    const producer = machineIds.find((m) => item in sockets(m).output);
     if (producer) focus(producer);
   };
   useEffect(() => {
@@ -90,7 +98,11 @@ export function App() {
     if (!backup) requestAnimationFrame(() => transfer.current?.focus());
   };
   return (
-    <div className={'app mobile-' + tab}>
+    <div
+      className={
+        'app mobile-' + tab + (dusk ? ' dusk ' + (daylight(s.timeSec) ? 'day' : 'night') : '')
+      }
+    >
       <header className="topbar">
         <div className="brand">
           <span className="brand-icon">
@@ -116,10 +128,10 @@ export function App() {
         <section className="hero">
           <div className="hero-copy">
             <div className="eyebrow">
-              <span /> {t.ui.sector} <i>/</i> {t.ui.region}
+              <span /> {dusk ? t.dusk.sector : t.ui.sector} <i>/</i> {t.ui.region}
             </div>
-            <h1>{t.planets.grit.name}</h1>
-            <p>{t.planets.grit.brief}</p>
+            <h1>{t.planets[s.planetId].name}</h1>
+            <p>{t.planets[s.planetId].brief}</p>
             <div className="mine-line">
               {master && (
                 <select
@@ -144,10 +156,49 @@ export function App() {
                 {t.ui.mine}
                 <span>+{master ? cards.pick_master.effect : b.mineAmount}</span>
               </button>
+              <button
+                aria-expanded={workbench}
+                aria-controls="workbench"
+                onClick={() => setWorkbench(!workbench)}
+              >
+                <Hammer size={16} /> {t.workbench.title}
+              </button>
             </div>
           </div>
-          <div className="map-mark">{t.ui.map}</div>
+          <div className="map-mark">{dusk ? t.dusk.map : t.ui.map}</div>
         </section>
+        {dusk && (
+          <section
+            className={'power-strip ' + (s.powerFactor < 1 ? 'short' : '')}
+            aria-label={t.dusk.power}
+          >
+            <b>
+              {daylight(s.timeSec) ? t.dusk.day : t.dusk.night}{' '}
+              <code>{time(Math.ceil(untilChange(s.timeSec)))}</code>
+            </b>
+            <span>
+              {t.dusk.supply} <b>{fmt(s.supply)}</b> / {t.dusk.demand} <b>{fmt(s.demand)}</b>
+            </span>
+            <strong>
+              {t.dusk.factor} ×{s.powerFactor.toFixed(2)}
+            </strong>
+            {s.cards.includes('battery_bank') && (
+              <span>
+                {t.dusk.charge} {fmt(s.storedPower)}
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setView('list');
+                setTab('factory');
+                setSelected('coal_plant');
+                requestAnimationFrame(() => document.getElementById('row-coal_plant')?.focus());
+              }}
+            >
+              {t.dusk.jump}
+            </button>
+          </section>
+        )}
         <div className="resources">
           <div className="stat">
             <LayoutGrid />
@@ -174,6 +225,7 @@ export function App() {
             </div>
           </div>
         </div>
+        {workbench && <Workbench {...{ s, act }} onClose={() => setWorkbench(false)} />}
         <Inventory />
         {backup && (
           <section className="panel transfer">
@@ -244,11 +296,32 @@ export function App() {
           <section ref={ending} className="ending">
             <Orbit />
             <div>
-              <h2>{t.ui.ending}</h2>
+              <h2>{dusk ? t.dusk.done : t.ui.ending}</h2>
               <p>
-                {t.echo.end} {t.echo.ack}
+                {dusk ? t.dusk.end : t.echo.end} {dusk ? '' : t.echo.ack}
+                {!dusk && (
+                  <small>
+                    {' '}
+                    {t.dusk.carry} {fmt(Math.min(carryLimit(s), s.credits))} / {fmt(carryLimit(s))}
+                  </small>
+                )}
               </p>
             </div>
+            {!dusk && (
+              <button
+                className="primary"
+                onClick={() => {
+                  act(landOnDusk);
+                  setSelected(null);
+                  setRequestedLink(null);
+                  setView('graph');
+                  setTab('factory');
+                  window.scrollTo(0, 0);
+                }}
+              >
+                {t.dusk.land}
+              </button>
+            )}
             <Check />
           </section>
         )}
@@ -290,6 +363,7 @@ export function App() {
               {view === 'graph' ? (
                 <Suspense fallback={<div className="graph" />}>
                   <Network
+                    key={s.planetId}
                     {...{ s, act, selected, focusToken, requestedLink, setRequestedLink }}
                     focus={focusItem}
                     shortages={flows.shortages}
@@ -313,6 +387,8 @@ export function App() {
                 </span>
               </div>
             </div>
+            <Blueprints key={s.planetId} {...{ s, act }} />
+            <SplitControls {...{ s, act }} />
             <ValveControls {...{ s, act }} />
             {s.cards.includes('black_market') && (
               <div className="panel">

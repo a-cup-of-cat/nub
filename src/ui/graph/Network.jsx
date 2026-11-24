@@ -1,249 +1,353 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
-  Handle,
-  Position,
   Background,
   BackgroundVariant,
+  ViewportPortal,
   useReactFlow,
 } from '@xyflow/react';
-import { Maximize, Plus, Minus, RotateCcw, Route, Expand, Minimize } from 'lucide-react';
+import {
+  Maximize,
+  Plus,
+  Minus,
+  RotateCcw,
+  Route,
+  Expand,
+  Minimize,
+  Hammer,
+  Undo2,
+  X,
+  Trash2,
+} from 'lucide-react';
 import '@xyflow/react/dist/style.css';
-import { network, routeCells, setBelts, snap, toCell } from '../../engine/belts';
+import {
+  network,
+  pairs,
+  portDock,
+  trace,
+  quoteBelts,
+  setBelts,
+  craftBelts,
+  planSite,
+  siteClear,
+  snap,
+  toCell,
+} from '../../engine/belts';
+import { craftableBatches } from '../../engine/crafting';
 import { transport as cfg } from '../../data/transport';
-import { BeltEdge } from './BeltEdge';
-import { BeltTools } from './BeltTools';
+import { balance as b } from '../../data/balance';
+import { BeltEdge, beltPoints, pathOf } from './BeltEdge';
+import { FactoryNode } from './FactoryNode';
+import { SpriteLibrary } from './FactoryArt';
 import { progress } from '../../engine/merchant';
 import { zhCN as t } from '../../i18n/zh-CN';
 import { MachineInfo } from '../list/Machines';
 import { shown } from '../common/display';
-function NodeCard({ data: { s, id, act, focus, shortages } }) {
-  const issue = shortages.find((v) => v.producer === id);
-  return (
-    <article
-      style={{ width: cfg.machineWidth, height: cfg.machineHeight }}
-      className={'graph-card ' + (issue && issue.ratio < 1 ? 'constrained' : '')}
-    >
-      <Handle type="target" position={Position.Left} />
-      <MachineInfo {...{ s, id, act, focus }} pressure={issue && issue.ratio < 1} />
-      <Handle type="source" position={Position.Right} />
-    </article>
-  );
-}
-const nodeTypes = { machine: NodeCard };
+import { rateText } from '../common/resourceReadout';
+
+const nodeTypes = { machine: FactoryNode };
 const edgeTypes = { belt: BeltEdge };
-const defaultLane = [[]];
+const same = (a, b) => a.x === b.x && a.y === b.y;
+// A free stroke snaps to the dominant axis, so every drawn piece is a straight line.
+const straight = (from, to) =>
+  Math.abs(to.x - from.x) >= Math.abs(to.y - from.y) ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
+function push(points, p) {
+  return same(points.at(-1), p) ? points : [...points, p];
+}
+
 function View({ s, act, focus, selected, shortages, focusToken, requestedLink, setRequestedLink }) {
-  const allIds = shown(s),
-    plan = network(s),
-    flow = useReactFlow();
-  const [drag, setDrag] = useState({}),
-    [editing, setEditing] = useState(false),
+  const plan = network(s),
+    flow = useReactFlow(),
+    allIds = shown(s);
+  const [build, setBuild] = useState(false),
+    [helpOpen, setHelpOpen] = useState(() => {
+      try { return sessionStorage.getItem('crashstar.beltHelp') !== 'hidden'; } catch { return true; }
+    }),
     [wide, setWide] = useState(false),
     [notice, setNotice] = useState(''),
-    [choice, setChoice] = useState(null);
-  const [catalog, setCatalog] = useState('');
-  const ids = plan.active.length
-      ? allIds.filter(
-          (id) => s.machines[id].count || (!editing && (id === catalog || id === selected)),
-        )
-      : allIds,
-    signature = ids.join(',');
-  const available = allIds.filter((id) => !s.machines[id].count);
-  const [from, setFrom] = useState(null);
-  function pickNode(e, node) {
-    if (!editing || e.target.closest('button,select,input')) return;
-    const link = plan.active.find((p) => p.source === from && p.target === node.id);
-    if (link) {
-      select(link, 0);
-      setFrom(null);
+    [stroke, setStroke] = useState(null),
+    [hover, setHover] = useState(null),
+    [hoverPort, setHoverPort] = useState(null),
+    [pick, setPick] = useState(null),
+    [inspect, setInspect] = useState(null),
+    [hint, setHint] = useState(null),
+    [catalog, setCatalog] = useState(''),
+    [drag, setDrag] = useState({});
+  const built = allIds.filter((id) => s.machines[id].count);
+  // Build mode shows unbuilt machines as dashed frames so the player can plan their sites.
+  const ids = build
+    ? allIds
+    : built.length
+      ? allIds.filter((id) => s.machines[id].count || [catalog, selected, inspect].includes(id))
+      : allIds;
+  const signature = ids.join(','),
+    available = allIds.filter((id) => !s.machines[id].count);
+
+  const dockOf = (port) => portDock(plan.positions, port.id, port.item, port.side === 'out');
+  function showHelp(open) {
+    setHelpOpen(open);
+    try { sessionStorage.setItem('crashstar.beltHelp', open ? 'open' : 'hidden'); } catch { /* Session storage is optional. */ }
+  }
+  function reset(message = '') {
+    setStroke(null);
+    setHoverPort(null);
+    setNotice(message);
+  }
+  // Complete a stroke at `port`: the free end snaps with at most one extra corner (an L-turn).
+  function completion(port) {
+    if (!stroke || port.item !== stroke.item) return { error: t.belts.mismatch };
+    if (port.side === stroke.side || port.id === stroke.id) return { error: t.belts.sameSide };
+    const source = stroke.side === 'out' ? stroke.id : port.id,
+      target = stroke.side === 'out' ? port.id : stroke.id;
+    const pair = pairs.find((p) => p.source === source && p.target === target && p.item === port.item);
+    if (!pair) return { error: t.belts.noPair };
+    if (!s.machines[source].count || !s.machines[target].count) return { error: t.belts.unbuilt };
+    const end = dockOf(port),
+      last = stroke.points.at(-1);
+    const tries =
+      last.x === end.x || last.y === end.y
+        ? [push(stroke.points, end)]
+        : [
+            push(push(stroke.points, { x: last.x, y: end.y }), end),
+            push(push(stroke.points, { x: end.x, y: last.y }), end),
+          ];
+    const route = tries.find((points) => trace(points, plan.blocked)) ?? tries[0];
+    const ordered = stroke.side === 'out' ? route : [...route].reverse();
+    const via = ordered.slice(1, -1),
+      lanes = [...(s.belts[pair.key] ?? []), via];
+    if (lanes.length > cfg.maxBeltsPerPair) return { error: t.belts.laneFull, route };
+    const quote = quoteBelts(s, pair, lanes);
+    if (!quote) return { error: t.belts.blocked, route };
+    return { pair, lanes, route, delta: quote.delta };
+  }
+  function onPort(port) {
+    if (!build) return;
+    setPick(null);
+    if (!stroke) {
+      setStroke({ ...port, points: [dockOf(port)] });
+      setNotice('');
       return;
     }
-    if (plan.active.some((p) => p.source === node.id)) {
-      setFrom(node.id);
-      setNotice(t.belts.source + ' · ' + t.machines[node.id] + ' → ' + t.belts.target);
+    if (stroke.id === port.id && stroke.item === port.item && stroke.side === port.side) {
+      reset();
+      return;
     }
+    const done = completion(port);
+    if (done.error) {
+      setNotice(done.error);
+      return;
+    }
+    if (done.delta > Math.floor(s.stock.belt + b.epsilon)) {
+      setNotice(
+        t.belts.shortNeed + ' ' + done.delta + ' ' + t.belts.shortHave + ' ' + Math.floor(s.stock.belt + b.epsilon) + ' ' + t.belts.pieces + '。' + t.belts.craftMore,
+      );
+      return;
+    }
+    act((v) => setBelts(v, done.pair, done.lanes));
+    setHint(null);
+    reset(t.belts.saved);
   }
-  const pair = plan.active.find((p) => p.key === choice?.key) ?? plan.active[0];
-  const lanes = pair ? (s.belts[pair.key] ?? defaultLane) : [];
-  const draft =
-    choice?.key === pair?.key && choice
-      ? choice
-      : { key: pair?.key, index: 0, via: lanes[0] ?? [] };
-  const existing = plan.belts.find((b) => b.pair.key === pair?.key && b.index === draft.index);
-  const preview = useMemo(
-    () => (editing && pair ? routeCells(plan.positions, pair, draft.via, plan.blocked) : null),
-    [editing, plan, pair, draft.via],
-  );
-  const select = (p, index) => {
-    if (!p) return;
-    setChoice({ key: p.key, index, via: (s.belts[p.key] ?? [[]])[index] ?? [] });
-    setNotice('');
-  };
+  function addCorner(cell) {
+    if (!stroke) return;
+    const next = push(stroke.points, straight(stroke.points.at(-1), cell));
+    if (next.length - 1 > cfg.maxWaypoints) {
+      setNotice(t.belts.invalid);
+      return;
+    }
+    setStroke({ ...stroke, points: next });
+  }
+  const cellAt = (e) => toCell(flow.screenToFlowPosition({ x: e.clientX, y: e.clientY }));
+
+  // Live preview of the stroke, red when it would cross a machine or double back.
+  let preview = null;
+  if (build && stroke) {
+    const done = hoverPort && completion(hoverPort);
+    const points =
+      done && done.route
+        ? done.route
+        : hover
+          ? push(stroke.points, straight(stroke.points.at(-1), hover))
+          : stroke.points;
+    const cells = trace(points, plan.blocked);
+    preview = {
+      points: points.map((p) => ({ x: p.x * cfg.cell, y: p.y * cfg.cell })),
+      ok: !!cells && !(done && done.error),
+      length: cells ? cells.length - 1 : null,
+      delta: done && !done.error ? done.delta : null,
+    };
+  }
+  const pickedBelt = plan.belts.find((x) => x.id === pick);
+  function removePicked() {
+    if (!pickedBelt) return;
+    const lanes = (s.belts[pickedBelt.pair.key] ?? []).filter((_, i) => i !== pickedBelt.index);
+    act((v) => setBelts(v, pickedBelt.pair, lanes));
+    setPick(null);
+    setNotice(t.belts.removed);
+  }
+
+  useEffect(() => {
+    if (!build) return;
+    const keys = (e) => {
+      if (e.target.closest?.('input,select,textarea')) return;
+      if (e.key === 'Escape') {
+        if (!stroke && !pickedBelt && !notice && helpOpen) showHelp(false);
+        reset();
+        setPick(null);
+      } else if (e.key === 'Backspace' && stroke && stroke.points.length > 1) {
+        e.preventDefault();
+        setStroke({ ...stroke, points: stroke.points.slice(0, -1) });
+      } else if (e.key === 'Delete' && pickedBelt) removePicked();
+    };
+    window.addEventListener('keydown', keys);
+    return () => window.removeEventListener('keydown', keys);
+  });
+  useEffect(() => {
+    if (!wide) return;
+    const close = (e) => {
+      if (e.key === 'Escape' && !stroke) setWide(false);
+    };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [wide, stroke]);
+  // "Jump to" from a belt-limited machine: open build mode on that link and light both ports.
   useEffect(() => {
     if (!requestedLink) return;
     const link = plan.active.find((p) => p.key === requestedLink);
     if (link) {
-      select(link, 0);
-      setEditing(true);
+      setBuild(true);
+      const laid = plan.belts.find((x) => x.pair.key === link.key && x.cells);
+      setPick(laid?.id ?? null);
+      setHint({ item: link.item, out: link.source, in: link.target });
+      setNotice(
+        laid
+          ? ''
+          : t.belts.missing + ' · ' + t.machines[link.source] + ' → ' + t.machines[link.target] + '。' + t.belts.missingHint,
+      );
       requestAnimationFrame(() =>
-        flow.fitView({
-          nodes: [{ id: link.source }, { id: link.target }],
-          padding: 0.18,
-          maxZoom: 1,
-        }),
+        flow.fitView({ nodes: [{ id: link.source }, { id: link.target }], padding: 0.25, maxZoom: 1 }),
       );
     }
     setRequestedLink(null);
   }, [requestedLink]);
-  const patch = (via) => {
-    setChoice({ ...draft, via });
-    setNotice('');
-  };
-  function addPoint(p) {
-    if (
-      !pair ||
-      draft.via.length >= cfg.maxWaypoints ||
-      ![p.x, p.y].every((v) => Number.isInteger(v) && Math.abs(v) <= cfg.coordinateLimit)
-    ) {
-      setNotice(t.belts.invalid);
-      return;
-    }
-    patch([...draft.via, p]);
-  }
-  function change(kind) {
-    if (!pair) return;
-    if (kind === 'reset') {
-      act((v) => {
-        const belts = { ...v.belts };
-        delete belts[pair.key];
-        return { ...v, belts };
-      });
-      setChoice({ key: pair.key, index: 0, via: [] });
-      setNotice(t.belts.restored);
-      return;
-    }
-    const next = [...lanes];
-    if (kind === 'remove') next.splice(draft.index, 1);
-    else next[draft.index] = draft.via;
-    act((v) => setBelts(v, pair, next));
-    setChoice(kind === 'remove' ? { key: pair.key, index: 0, via: next[0] ?? [] } : { ...draft });
-    setNotice(kind === 'remove' ? t.belts.removed : t.belts.saved);
-  }
-  function focusPair() {
-    if (pair)
-      flow.fitView({
-        nodes: [{ id: pair.source }, { id: pair.target }],
-        padding: 0.18,
-        maxZoom: 1,
-      });
-  }
-  useEffect(() => {
-    if (!wide) return;
-    const close = (e) => {
-      if (e.key === 'Escape') setWide(false);
-    };
-    window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
-  }, [wide]);
-  const repaired = progress(s) >= 1;
-  const nodes = ids.map((id) => {
-    const issue = shortages.find((v) => v.producer === id);
-    return {
-      id,
-      type: 'machine',
-      position: drag[id] ?? plan.positions[id],
-      data: { s, id, act, focus, shortages },
-      className:
-        (selected === id ? 'highlight ' : '') +
-        (repaired
-          ? issue
-            ? issue.ratio < 1
-              ? 'border-short'
-              : 'border-tight'
-            : 'border-ok'
-          : ''),
-      ariaLabel: t.machines[id],
-    };
-  });
-  const edges = plan.belts
-    .filter((b) => b.cells)
-    .map((belt) => ({
-      id: belt.id,
-      source: belt.pair.source,
-      target: belt.pair.target,
-      type: 'belt',
-      selectable: false,
-      data: {
-        belt,
-        flow: s.beltFlow[belt.id] ?? 0,
-        selected: editing && existing?.id === belt.id,
-        edit: () => {
-          select(belt.pair, belt.index);
-          setEditing(true);
-        },
-      },
-    }));
-  const changedRoute =
-    !existing ||
-    existing.via.length !== draft.via.length ||
-    existing.via.some((point, i) => point.x !== draft.via[i].x || point.y !== draft.via[i].y);
-  if (editing && pair && changedRoute && preview) {
-    edges.push({
-      id: 'draft',
-      source: pair.source,
-      target: pair.target,
-      type: 'belt',
-      selectable: false,
-      data: {
-        belt: { pair, cells: preview, via: draft.via },
-        flow: 0,
-        selected: true,
-        draft: true,
-        edit: () => {},
-      },
-    });
-  }
   useEffect(() => {
     const frame = requestAnimationFrame(() => flow.fitView({ padding: 0.15, maxZoom: 1 }));
     return () => cancelAnimationFrame(frame);
   }, [signature, flow]);
   useEffect(() => {
     if (!selected) return;
+    if (!build) setInspect(selected);
     const node = flow.getNode(selected);
     if (node) flow.fitView({ nodes: [node], maxZoom: 1, padding: 0.3 });
   }, [selected, focusToken, flow]);
+
+  const repaired = s.planetId==='dusk'||progress(s) >= 1;
+  const nodes = ids.map((id) => {
+    const issue = shortages.find((v) => v.producer === id);
+    return {
+      id,
+      type: 'machine',
+      position: drag[id] ?? plan.positions[id],
+      draggable: build && !s.machines[id].count,
+      selectable: false,
+      data: {
+        s,
+        id,
+        build,
+        stroke,
+        hint,
+        onPort,
+        onPortHover: setHoverPort,
+        border:
+          (selected === id || inspect === id ? 'highlight ' : '') +
+          (repaired && s.machines[id].count
+            ? issue
+              ? issue.ratio < 1
+                ? 'border-short'
+                : 'border-tight'
+              : 'border-ok'
+            : ''),
+      },
+      ariaLabel: t.machines[id],
+    };
+  });
+  const edges = plan.belts
+    .filter((x) => x.cells)
+    .map((belt) => ({
+      id: belt.id,
+      source: belt.pair.source,
+      target: belt.pair.target,
+      type: 'belt',
+      selectable: false,
+      focusable: false,
+      data: {
+        belt,
+        flow: s.beltFlow[belt.id] ?? 0,
+        build,
+        selected: pick === belt.id,
+        onSelect: () => {
+          if (!build || stroke) return;
+          setPick(belt.id);
+          setNotice('');
+        },
+      },
+    }));
   function changed(changes) {
     const moved = changes.getByType('position').filter((c) => c.position);
-    if (!moved.length) return;
-    setDrag((prev) => ({ ...prev, ...Object.fromEntries(moved.map((c) => [c.id, c.position])) }));
-    for (const c of moved)
-      if (c.dragging === false)
-        act((v) => ({
-          ...v,
-          ui: { nodePositions: { ...v.ui.nodePositions, [c.id]: snap(c.position) } },
-        }));
+    if (moved.length)
+      setDrag((prev) => ({ ...prev, ...Object.fromEntries(moved.map((c) => [c.id, c.position])) }));
   }
+  function dropped(_, node) {
+    const p = snap(node.position);
+    setDrag({});
+    if (s.machines[node.id].count) return;
+    if (siteClear(s, node.id, p)) act((v) => planSite(v, node.id, p));
+    else setNotice(t.belts.badSite);
+  }
+  const short = preview && preview.length !== null && (preview.delta ?? preview.length + 2) > Math.floor(s.stock.belt + b.epsilon);
+  const craftable = (n) => craftableBatches(s, 'belt') >= n;
+
   return (
     <div className={'belt-workspace ' + (wide ? 'expanded' : '')}>
+      <SpriteLibrary />
       <div className="belt-toolbar">
         <button
-          className={editing ? 'on' : ''}
-          aria-pressed={editing}
+          className={build ? 'on' : ''}
+          aria-pressed={build}
           onClick={() => {
-            setEditing(!editing);
-            setNotice('');
+            setBuild(!build);
+            reset();
+            setPick(null);
+            setHint(null);
+            setInspect(null);
           }}
         >
           <Route size={16} />
-          {editing ? t.belts.done : t.belts.lay}
+          {build ? t.belts.leave : t.belts.mode}
         </button>
-        {!editing && plan.active.length > 0 && available.length > 0 && (
+        {build && <button aria-expanded={helpOpen} aria-controls="belt-help" onClick={() => showHelp(!helpOpen)}>{t.belts.instructions}</button>}
+        <span className={'belt-stock ' + (short ? 'low' : '')}>
+          {t.belts.stock} <b>{Math.floor(s.stock.belt + b.epsilon)}</b> {t.belts.pieces}
+        </span>
+        {[1, b.largeBatch].map((n) => (
+          <button
+            key={n}
+            disabled={!craftable(n)}
+            onClick={() => act((v) => craftBelts(v, n))}
+            title={n * cfg.craftStone + ' ' + t.belts.craftCost + ' → ' + n * cfg.craftYield + ' ' + t.belts.pieces}
+          >
+            <Hammer size={14} />
+            {t.belts.craft} +{n * cfg.craftYield}
+          </button>
+        ))}
+        {!build && built.length > 0 && available.length > 0 && (
           <select
             aria-label={t.ui.addMachine}
             value={available.includes(catalog) ? catalog : ''}
-            onChange={(e) => setCatalog(e.target.value)}
+            onChange={(e) => {
+              setCatalog(e.target.value);
+              setInspect(e.target.value || null);
+            }}
           >
             <option value="">{t.ui.addMachine}</option>
             {available.map((id) => (
@@ -262,39 +366,50 @@ function View({ s, act, focus, selected, shortages, focusToken, requestedLink, s
           {wide ? <Minimize size={16} /> : <Expand size={16} />}
         </button>
       </div>
-      {editing && (
-        <BeltTools
-          {...{ plan, pair, draft, select, patch, addPoint, existing, preview, notice, s }}
-          save={() => change('save')}
-          remove={() => change('remove')}
-          reset={() => change('reset')}
-          focus={focusPair}
-        />
-      )}
-      <div className={'graph ' + (editing ? 'placing' : '')}>
+      {build && helpOpen && <aside className="belt-help" id="belt-help">
+        <div><p>{t.belts.drawHelp}</p><p>{t.belts.siteHelp}</p></div>
+        <button aria-label={t.belts.hideInstructions} onClick={() => showHelp(false)}><X size={16} /></button>
+      </aside>}
+      <div
+        className={'graph ' + (build ? 'build-mode' : 'view-mode') + (stroke ? ' drawing' : '')}
+        onMouseMove={(e) => {
+          if (!stroke) return;
+          const c = cellAt(e);
+          if (!hover || !same(hover, c)) setHover(c);
+        }}
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onNodeClick={pickNode}
+          onNodeClick={(e, node) => {
+            if (build) {
+              if (stroke) addCorner(cellAt(e));
+              return;
+            }
+            if (e.target.closest('button,select,input')) return;
+            setInspect(node.id);
+          }}
+          onPaneClick={(e) => {
+            if (build && stroke) addCorner(cellAt(e));
+            else {
+              setPick(null);
+              if (!build) setInspect(null);
+            }
+          }}
+          onPaneContextMenu={(e) => {
+            if (!stroke) return;
+            e.preventDefault();
+            reset();
+          }}
           snapToGrid
           snapGrid={[cfg.cell, cfg.cell]}
-          nodesDraggable={!editing}
-          onPaneClick={(e) => {
-            if (editing && pair)
-              addPoint(toCell(flow.screenToFlowPosition({ x: e.clientX, y: e.clientY })));
-          }}
           onNodesChange={changed}
-          onNodeDragStop={(_, node) => {
-            act((v) => ({
-              ...v,
-              ui: { nodePositions: { ...v.ui.nodePositions, [node.id]: snap(node.position) } },
-            }));
-            setDrag({});
-          }}
+          onNodeDragStop={dropped}
           nodesConnectable={false}
           edgesReconnectable={false}
+          elementsSelectable={false}
           deleteKeyCode={null}
           minZoom={0.12}
           maxZoom={2}
@@ -302,13 +417,100 @@ function View({ s, act, focus, selected, shortages, focusToken, requestedLink, s
           fitViewOptions={{ maxZoom: 1 }}
           proOptions={{ hideAttribution: true }}
         >
-          <Background
-            variant={BackgroundVariant.Lines}
-            color="var(--dots)"
-            gap={cfg.cell}
-            size={1}
-          />
+          {build ? (
+            <Background variant={BackgroundVariant.Lines} color="var(--grid-line)" gap={cfg.cell} size={1} />
+          ) : (
+            <Background variant={BackgroundVariant.Dots} color="var(--ground-dot)" gap={cfg.cell * 2} size={2} />
+          )}
+          {preview && (
+            <ViewportPortal>
+              <svg className="stroke-preview" width="1" height="1" aria-hidden>
+                <path className={preview.ok ? 'ok' : 'bad'} d={pathOf(preview.points)} />
+                {preview.points.map((p, i) => (
+                  <circle key={i} cx={p.x} cy={p.y} r={i ? 4 : 6} />
+                ))}
+              </svg>
+            </ViewportPortal>
+          )}
+          {build && pickedBelt?.cells && (
+            <ViewportPortal>
+              <svg className="stroke-preview picked" width="1" height="1" aria-hidden>
+                <path d={pathOf(beltPoints(pickedBelt.cells))} />
+              </svg>
+            </ViewportPortal>
+          )}
         </ReactFlow>
+        {build && (stroke || pickedBelt || notice) && (
+          <section className="build-hud" aria-live="polite">
+            {stroke ? (
+              <>
+                <p>
+                  <b>{t.belts.drawing}</b> · {t.items[stroke.item]} · {t.machines[stroke.id]} (
+                  {stroke.side === 'out' ? t.belts.portOut : t.belts.portIn})
+                </p>
+                <p className={short ? 'low' : ''}>
+                  {t.belts.drawn} <b>{preview?.length ?? '—'}</b> {t.belts.pieces} · {t.belts.have}{' '}
+                  <b>{Math.floor(s.stock.belt + b.epsilon)}</b> {t.belts.pieces}
+                  {short && ' · ' + t.belts.short}
+                </p>
+                <div className="hud-actions">
+                  <button
+                    disabled={stroke.points.length < 2}
+                    onClick={() => setStroke({ ...stroke, points: stroke.points.slice(0, -1) })}
+                  >
+                    <Undo2 size={14} />
+                    {t.belts.undo}
+                  </button>
+                  <button onClick={() => reset()}>
+                    <X size={14} />
+                    {t.belts.cancel}
+                  </button>
+                </div>
+              </>
+            ) : pickedBelt ? (
+              <>
+                <p>
+                  <b>{t.belts.picked}</b> · {t.items[pickedBelt.pair.item]} ·{' '}
+                  {t.machines[pickedBelt.pair.source]} → {t.machines[pickedBelt.pair.target]}
+                </p>
+                <p>
+                  {t.belts.length} <b>{pickedBelt.cells ? pickedBelt.cells.length - 1 : '—'}</b>{' '}
+                  {t.belts.pieces} · {t.belts.flow}{' '}
+                  <b>{rateText(s.beltFlow[pickedBelt.id] ?? 0)}</b> · {t.belts.limit}{' '}
+                  <b>{rateText(cfg.capacityPerMinute)}</b> · {t.belts.lanes}{' '}
+                  <b>{(s.belts[pickedBelt.pair.key] ?? []).length}</b>
+                </p>
+                <div className="hud-actions">
+                  <button onClick={removePicked}>
+                    <Trash2 size={14} />
+                    {t.belts.remove}
+                  </button>
+                  <button onClick={() => setPick(null)}>
+                    <X size={14} />
+                    {t.ui.close}
+                  </button>
+                </div>
+              </>
+            ) : null}
+            {notice && (
+              <p role="status" className="hud-notice">
+                {notice} <button aria-label={t.ui.close} onClick={() => setNotice('')}><X size={14} /></button>
+              </p>
+            )}
+          </section>
+        )}
+        {!build && inspect && s.machines[inspect] && (
+          <section className="node-inspector graph-card">
+            <button className="inspector-close" aria-label={t.ui.close} onClick={() => setInspect(null)}>
+              <X size={14} />
+            </button>
+            <MachineInfo
+              {...{ s, act, focus }}
+              id={inspect}
+              pressure={shortages.some((v) => v.producer === inspect && v.ratio < 1)}
+            />
+          </section>
+        )}
         <div className="graph-tools">
           {[
             [Plus, t.ui.zoomIn, () => flow.zoomIn()],
@@ -316,11 +518,18 @@ function View({ s, act, focus, selected, shortages, focusToken, requestedLink, s
             [Maximize, t.ui.fit, () => flow.fitView({ padding: 0.15, maxZoom: 1 })],
             [
               RotateCcw,
-              t.ui.resetView,
+              t.ui.resetGhosts,
               () => {
                 setDrag({});
-                act((v) => ({ ...v, ui: { nodePositions: {} } }));
-                requestAnimationFrame(() => flow.fitView({ padding: 0.15, maxZoom: 1 }));
+                // Built machines keep their sites; only planned (unbuilt) sites are cleared.
+                act((v) => ({
+                  ...v,
+                  ui: {
+                    nodePositions: Object.fromEntries(
+                      Object.entries(v.ui.nodePositions).filter(([id]) => v.machines[id].count),
+                    ),
+                  },
+                }));
               },
             ],
           ].map(([Icon, label, fn]) => (

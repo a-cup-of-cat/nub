@@ -1,6 +1,8 @@
+import { recipes, beltBatchesPerMinute } from './crafting';
 import type { Amounts } from './items';
 type Definition = {
-  group: 'mining' | 'smelting' | 'assembly' | 'advanced';
+  group: 'mining' | 'smelting' | 'assembly' | 'advanced' | 'power' | 'goal';
+  dusk?: boolean;
   input: Amounts;
   output: Amounts;
   power: number;
@@ -119,6 +121,105 @@ export const machines = {
     cost: { part: 60, circuit: 40 },
     fp: 4,
     base: true,
+  },
+  belt_assembler: {
+    group: 'assembly',
+    input: { stone: recipes.belt.input.stone * beltBatchesPerMinute },
+    output: { belt: recipes.belt.yield * beltBatchesPerMinute },
+    power: 1,
+    cost: { iron_ingot: 30 },
+    fp: 1,
+    base: true,
+  },
+  coal_plant: {
+    group: 'power',
+    input: { coal: 10 },
+    output: {},
+    power: -20,
+    cost: { stone: 200 },
+    fp: 2,
+    base: false,
+    dusk: true,
+  },
+  solar_station: {
+    group: 'power',
+    input: {},
+    output: {},
+    power: -6,
+    cost: { solar_panel: 5, stone: 50 },
+    fp: 3,
+    base: false,
+    dusk: true,
+  },
+  bauxite_drill: {
+    group: 'mining',
+    input: {},
+    output: { bauxite: 20 },
+    power: 1,
+    cost: { stone: 80, iron_ingot: 20 },
+    fp: 1,
+    base: false,
+    dusk: true,
+  },
+  electrolyzer: {
+    group: 'smelting',
+    input: { bauxite: 20 },
+    output: { aluminum: 10 },
+    power: 15,
+    cost: { steel: 60, copper_wire: 30 },
+    fp: 3,
+    base: false,
+    dusk: true,
+  },
+  steel_furnace: {
+    group: 'smelting',
+    input: { iron_ingot: 30, coal: 15 },
+    output: { steel: 15 },
+    power: 3,
+    cost: { stone: 150, iron_ingot: 40 },
+    fp: 2,
+    base: false,
+    dusk: true,
+  },
+  glass_kiln: {
+    group: 'smelting',
+    input: { quartz: 20 },
+    output: { glass: 10 },
+    power: 2,
+    cost: { stone: 120 },
+    fp: 2,
+    base: false,
+    dusk: true,
+  },
+  solar_panel_fab: {
+    group: 'assembly',
+    input: { glass: 10, wafer: 10, aluminum: 10 },
+    output: { solar_panel: 5 },
+    power: 2,
+    cost: { steel: 40, circuit: 20 },
+    fp: 2,
+    base: false,
+    dusk: true,
+  },
+  motor_fab: {
+    group: 'assembly',
+    input: { copper_wire: 15, steel: 5, part: 10 },
+    output: { motor: 5 },
+    power: 3,
+    cost: { steel: 40, part: 30 },
+    fp: 2,
+    base: false,
+    dusk: true,
+  },
+  precision_shop: {
+    group: 'goal',
+    input: { steel: 20, aluminum: 10 },
+    output: { machine_bed: 1 },
+    power: 4,
+    cost: { steel: 80, chip: 20 },
+    fp: 4,
+    base: false,
+    dusk: true,
   },
 } as const satisfies Record<string, Definition>;
 export type MachineId = keyof typeof machines;

@@ -1,3 +1,3 @@
 import { writeFileSync } from 'node:fs';
-export const writeTimeline = (text) =>
-  writeFileSync(new URL('../simulation-timeline.csv', import.meta.url), text, 'utf8');
+export const writeTimeline = (text, file = 'simulation-timeline.csv') =>
+  writeFileSync(new URL('../' + file, import.meta.url), text, 'utf8');

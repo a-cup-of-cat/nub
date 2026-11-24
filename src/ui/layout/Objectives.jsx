@@ -2,13 +2,13 @@ import React from 'react';
 import { Crosshair, ScrollText, Ship, ArrowUpRight } from 'lucide-react';
 import { zhCN as t } from '../../i18n/zh-CN';
 import { balance as b } from '../../data/balance';
-import { grit } from '../../data/planets';
+import { planets } from '../../data/planets';
 import { quantities } from '../../data/items';
 import { deliverGoal, progress, trading } from '../../engine/merchant';
 import { resolveOrder } from '../../engine/orders';
 import { Resource, fmt, time, percent } from '../common/display';
 export function Objectives({ s, act, onTrade }) {
-  const targets = quantities(grit.goal),
+  const targets = quantities(planets[s.planetId].goal),
     p = progress(s);
   return (
     <>
@@ -24,7 +24,7 @@ export function Objectives({ s, act, onTrade }) {
           <Crosshair size={17} />
           <h2>{t.ui.goalHead}</h2>
         </div>
-        <h3>{t.ui.goal}</h3>
+        <h3>{s.planetId === 'dusk' ? t.dusk.goal : t.ui.goal}</h3>
         <div className="progress-line">
           <span className="meter">
             <i style={{ width: percent(p) }} />

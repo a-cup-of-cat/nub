@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 280" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="haze" x2="0" y2="1"><stop stop-color="#d5a49e" stop-opacity=".05"/><stop offset="1" stop-color="#e6c9ad" stop-opacity=".44"/></linearGradient>
+    <g id="panel" stroke="#393b45" stroke-linejoin="round">
+      <path d="m0 21 1-16 4-1-1 17z" fill="#343540"/>
+      <path d="m-16 7 24-11 13 4L-3 12z" fill="#8794a3"/>
+      <path d="m-8 3 12 5m-3-10 13 6M-10 9 12-2" fill="none" stroke="#c2b2ae" stroke-width=".8"/>
+    </g>
+  </defs>
+  <path fill="url(#haze)" d="M0 80h1440v180H0z"/>
+  <g fill="none" stroke="#e6c7ae" opacity=".42">
+    <path d="M660 98q245-67 540-55m-470 46q270-48 437-39m-255 8q153-26 317-15"/>
+    <circle cx="1148" cy="64" r="29"/><ellipse cx="1148" cy="64" rx="52" ry="6" transform="rotate(-17 1148 64)"/>
+  </g>
+  <path fill="#857782" d="m0 190 140-13 76-31 85-3 22-21 46-4 28 6 24 26 111 8 64-23 28-25 100-3 35 38 83 8 54-27 48-6 24-29 82-2 33 28 54 10 38-17 82-5 31-31 37 4 23 30 42 13 70 11 35-7v125H0z"/>
+  <path fill="#65585d" d="m0 210 154-13 102 1 95-17 44-21 79-4 16-18 92 1 18 24 101 10 79 21 90-8 72-32 87-8 38-32 71-4 22 20 21 20 72 17 87-11 80-18v142H0z"/>
+  <path fill="#493f43" d="m0 213 170-7 142 14 143-22 139 10 104-12 105 11 105-21 74 2 96-21 97 9 96-19 91 5 78-9v127H0z"/>
+  <g opacity=".87"><use href="#panel" transform="translate(842 184) scale(.75)"/><use href="#panel" transform="translate(881 179) scale(.85)"/><use href="#panel" transform="translate(929 181)"/><use href="#panel" transform="translate(983 174) scale(1.2)"/></g>
+  <path fill="#302e33" d="m0 241 213-8 164 15 117-10 135 11 153-19 109 12 158-21 95 4 121-21 175 5v71H0z"/>
+</svg>

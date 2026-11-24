@@ -6,6 +6,8 @@ import { carry } from './belts';
 import { allocate } from './allocation';
 import { rates } from './rates';
 import { usedGrid } from './build';
+import { settlePower } from './power';
+import { advanceQueue } from './blueprints';
 import { advanceOrders } from './orders';
 export function tick(s: GameState, dt: number = b.step, offline = false): GameState {
   if (!Number.isFinite(dt) || dt <= 0) return s;
@@ -25,8 +27,10 @@ export function tick(s: GameState, dt: number = b.step, offline = false): GameSt
   const factor = dt / b.minute;
   const plan = active.map((id) => {
     const r = rates(s, id, empty);
-    for (const [item, rate] of quantities(r.input)) (requests[item] ??= {})[id] = rate * factor;
-    return { id, ...r };
+    const power = r.power > 0 ? s.powerFactor : 1;
+    for (const [item, rate] of quantities(r.input))
+      (requests[item] ??= {})[id] = rate * factor * power;
+    return { id, ...r, power };
   });
   const { allowed, perLane, belts } = carry(s, requests, factor);
   const quotas: typeof requests = {};
@@ -35,16 +39,17 @@ export function tick(s: GameState, dt: number = b.step, offline = false): GameSt
   for (const id of machineIds)
     if (!active.includes(id) && s.machines[id].utilization)
       n.machines[id] = { ...s.machines[id], utilization: 0, shortage: null };
-  for (const { id, input, output } of plan) {
+  for (const { id, input, output, power } of plan) {
     let efficiency = 1,
       shortage: ItemId | null = null;
     for (const [item, rate] of quantities(input)) {
-      const ratio = (quotas[item]?.[id] ?? 0) / (rate * factor);
+      const ratio = power ? (quotas[item]?.[id] ?? 0) / (rate * factor * power) : 1;
       if (ratio < efficiency) {
         efficiency = ratio;
         shortage = item;
       }
     }
+    efficiency *= power;
     n.machines[id] = {
       ...s.machines[id],
       utilization: efficiency,
@@ -65,15 +70,25 @@ export function tick(s: GameState, dt: number = b.step, offline = false): GameSt
   for (const belt of belts) {
     const { item, target } = belt.pair,
       carried = allowed[item]?.[target] ?? 0;
-    const actual = ((requests[item]?.[target] ?? 0) * n.machines[target].utilization) / factor;
+    const actual =
+      n.machines[target].utilization * (plan.find((p) => p.id === target)?.input[item] ?? 0);
     n.beltFlow[belt.id] = carried ? (actual * (perLane[belt.id] ?? 0)) / carried : 0;
   }
   for (const item of itemIds) n.stock[item] = Math.max(0, s.stock[item] + n.net[item] * factor);
+  if (s.planetId === 'dusk')
+    settlePower(
+      s,
+      n,
+      dt,
+      Object.fromEntries(
+        plan.filter((row) => row.generation).map((row) => [row.id, row.generation]),
+      ),
+    );
   n.timeSec += dt;
   n.overtime = Math.max(0, s.overtime - dt);
   if (!offline) {
     n.orders = s.orders.map((slot) => ({ ...slot, order: slot.order ? { ...slot.order } : null }));
     advanceOrders(n, dt);
   }
-  return n;
+  return offline ? n : advanceQueue(n);
 }
