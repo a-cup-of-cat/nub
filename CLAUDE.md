@@ -9,5 +9,5 @@
 - `npm test` 运行全部测试
 - `npm run build` 类型检查并生成 dist/
 - `npm run lint` 检查代码，`npm run format` 格式化源码
-- `npm run simulate` 运行灰砾节奏模拟，生成 simulation-timeline.csv
+- `npm run simulate` 运行四颗星球的连续模拟，生成各星球的 CSV 时间线
 

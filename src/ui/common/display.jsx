@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Droplet,
   Boxes,
   Cpu,
   CircuitBoard,
@@ -29,6 +30,7 @@ export const time = (n) =>
     .join(':');
 export const percent = (n) => Math.round(n * 100) + '%';
 const shapes = {
+  fluid:Droplet,
   ore: Mountain,
   ingot: Layers3,
   part: Cog,
@@ -83,8 +85,8 @@ export function Amounts({ values, stock, perTime = false }) {
 }
 export function status(s, id) {
   const g = s.machines[id];
-  if(s.planetId==='dusk' && g.count>g.paused && !g.shortage){
-    if(id==='solar_station' && !g.utilization)return t.dusk.noCharge;
+  if(s.planetId!=='grit' && g.count>g.paused && !g.shortage){
+    if(s.planetId==='dusk' && id==='solar_station' && !g.utilization)return t.dusk.noCharge;
     if(definition(id).power>0 && s.powerFactor<1)return t.dusk.powerOff;
   }
   return !g.count

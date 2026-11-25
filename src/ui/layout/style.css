@@ -1809,3 +1809,15 @@ summary {
 .blueprint-panel summary {cursor:pointer;font-weight:bold}.blueprint-panel form,.split-row,.blueprint-row {margin-top:8px}
 .blueprint-panel input {max-width:100%}.blueprint-row small,.split-row form small {flex-basis:100%;color:var(--muted)}
 .split-row input {width:4em}.split-row label {font-size:13px}
+
+.redsand {--planet-accent:#e7a078;--planet-bg:#49322e}
+.frost {--planet-accent:#a6d7e2;--planet-bg:#2b4050}
+.redsand .hero{background-image:linear-gradient(85deg,var(--planet-bg),transparent 80%),url('../../../public/images/planets/redsand.svg'),linear-gradient(0deg,#dfae80,#a86856)}
+.frost .hero{background-image:linear-gradient(85deg,var(--planet-bg),transparent 82%),url('../../../public/images/planets/frost.svg'),linear-gradient(0deg,#85a3b5,#324b66)}
+.launch-cost,.goal-row small{font-size:12px;color:var(--muted)}
+.goal-row small{display:block}
+.star-map{display:block;width:100%;height:80px;margin:8px 0;border:1px solid var(--line);border-radius:6px;background:#21323d}
+.star-map line{stroke:#526571;stroke-dasharray:3 3}
+.star-map line.lit{stroke:#91c8cf;stroke-dasharray:none}
+.star-map .point{fill:#24353d;stroke:#7d929d}
+.star-map .point.lit{fill:#c4e5e0;stroke:#d3f5eb}

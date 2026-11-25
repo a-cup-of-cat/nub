@@ -107,7 +107,7 @@ export function Trade({ s, act, onClose }) {
         <Ticket size={16} />
         {t.ui.credits} <b>{fmt(s.credits)}</b>
       </div>
-      {fare && s.planetId === 'grit' && (
+      {fare && s.planetId !== 'frost' && (
         <p>
           {t.dusk.carry} {fmt(Math.min(carryLimit(s), s.credits))} / {fmt(carryLimit(s))} ·{' '}
           {t.dusk.carryHint}
@@ -154,7 +154,7 @@ export function Trade({ s, act, onClose }) {
         </h3>
         {Object.keys(shop)
           .filter(
-            (p) => s.planetId === 'dusk' || !['blueprint_card', 'emergency_battery'].includes(p),
+            (p) => s.planetId !== 'grit' || !['blueprint_card', 'emergency_battery'].includes(p),
           )
           .map((p) => (
             <div className="product" key={p}>
@@ -218,7 +218,7 @@ export function Trade({ s, act, onClose }) {
           {fare
             ? s.planetId === 'grit'
               ? t.ui.finish
-              : t.dusk.fare
+              : (t.planets[s.planetId].fare ?? t.dusk.fare)
             : confirm && !s.merchant.picked
               ? t.ui.skip
               : t.ui.depart}

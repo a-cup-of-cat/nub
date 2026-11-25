@@ -31,7 +31,8 @@ import { pairs, sockets } from '../../engine/belts';
 import { analysis } from '../../engine/rates';
 import { serialize } from '../../engine/save';
 import { trading } from '../../engine/merchant';
-import { landOnDusk, carryLimit } from '../../engine/travel';
+import { destination, redsand, frost } from '../../data/planets';
+import { landNext, carryLimit } from '../../engine/travel';
 import { daylight, untilChange } from '../../engine/power';
 import { Blueprints } from './Blueprints';
 import { SplitControls } from '../list/SplitControls';
@@ -63,6 +64,8 @@ export function App() {
     [focusToken, setFocusToken] = useState(0),
     [requestedLink, setRequestedLink] = useState(null);
   const dusk = s.planetId === 'dusk';
+  const chapter = dusk ? t.dusk : t.planets[s.planetId];
+  const next = destination[s.planetId];
   const transfer = useRef(null),
     ending = useRef(null),
     stage = s.merchant.stage;
@@ -100,7 +103,9 @@ export function App() {
   return (
     <div
       className={
-        'app mobile-' + tab + (dusk ? ' dusk ' + (daylight(s.timeSec) ? 'day' : 'night') : '')
+        'app mobile-' +
+        tab +
+        (' ' + s.planetId + (dusk ? ' ' + (daylight(s.timeSec) ? 'day' : 'night') : ''))
       }
     >
       <header className="topbar">
@@ -128,7 +133,7 @@ export function App() {
         <section className="hero">
           <div className="hero-copy">
             <div className="eyebrow">
-              <span /> {dusk ? t.dusk.sector : t.ui.sector} <i>/</i> {t.ui.region}
+              <span /> {chapter.sector ?? t.ui.sector} <i>/</i> {t.ui.region}
             </div>
             <h1>{t.planets[s.planetId].name}</h1>
             <p>{t.planets[s.planetId].brief}</p>
@@ -165,17 +170,29 @@ export function App() {
               </button>
             </div>
           </div>
-          <div className="map-mark">{dusk ? t.dusk.map : t.ui.map}</div>
+          <div className="map-mark">{chapter.map ?? t.ui.map}</div>
         </section>
-        {dusk && (
+        {s.planetId !== 'grit' && (
           <section
             className={'power-strip ' + (s.powerFactor < 1 ? 'short' : '')}
             aria-label={t.dusk.power}
           >
-            <b>
-              {daylight(s.timeSec) ? t.dusk.day : t.dusk.night}{' '}
-              <code>{time(Math.ceil(untilChange(s.timeSec)))}</code>
-            </b>
+            {dusk && (
+              <b>
+                {daylight(s.timeSec) ? t.dusk.day : t.dusk.night}{' '}
+                <code>{time(Math.ceil(untilChange(s.timeSec)))}</code>
+              </b>
+            )}
+            {s.planetId === 'redsand' && (
+              <b>
+                {t.waterSites} {s.machines.water_pump.count} / {redsand.waterLimit}
+              </b>
+            )}
+            {s.planetId === 'frost' && (
+              <b>
+                {t.cold} ×{frost.loadFactor}
+              </b>
+            )}
             <span>
               {t.dusk.supply} <b>{fmt(s.supply)}</b> / {t.dusk.demand} <b>{fmt(s.demand)}</b>
             </span>
@@ -296,10 +313,10 @@ export function App() {
           <section ref={ending} className="ending">
             <Orbit />
             <div>
-              <h2>{dusk ? t.dusk.done : t.ui.ending}</h2>
+              <h2>{chapter.done ?? t.ui.ending}</h2>
               <p>
-                {dusk ? t.dusk.end : t.echo.end} {dusk ? '' : t.echo.ack}
-                {!dusk && (
+                {chapter.end ?? t.echo.end} {s.planetId === 'grit' ? t.echo.ack : ''}
+                {next && (
                   <small>
                     {' '}
                     {t.dusk.carry} {fmt(Math.min(carryLimit(s), s.credits))} / {fmt(carryLimit(s))}
@@ -307,11 +324,11 @@ export function App() {
                 )}
               </p>
             </div>
-            {!dusk && (
+            {next && (
               <button
                 className="primary"
                 onClick={() => {
-                  act(landOnDusk);
+                  act(landNext);
                   setSelected(null);
                   setRequestedLink(null);
                   setView('graph');
@@ -319,7 +336,7 @@ export function App() {
                   window.scrollTo(0, 0);
                 }}
               >
-                {t.dusk.land}
+                {next === 'dusk' ? t.dusk.land : t.planets[next].land}
               </button>
             )}
             <Check />

@@ -1,5 +1,5 @@
 import { balance as b } from '../src/data/balance';
-import { dusk } from '../src/data/planets';
+import { planets } from '../src/data/planets';
 import { type MachineId } from '../src/data/machines';
 import { quantities } from '../src/data/items';
 import { build, canBuild, mine, pause } from '../src/engine/build';
@@ -14,17 +14,26 @@ import {
 } from '../src/engine/belts';
 import { rates } from '../src/engine/rates';
 import { transport } from '../src/data/transport';
-import { choose, deliverGoal, leaveMerchant, progress } from '../src/engine/merchant';
+import { launch, choose, deliverGoal, leaveMerchant, progress } from '../src/engine/merchant';
 import { setRecipe, operatingRecipe } from '../src/engine/recipes';
-import { landOnDusk } from '../src/engine/travel';
+import { landNext } from '../src/engine/travel';
 import { tick } from '../src/engine/tick';
 import type { GameState } from '../src/engine/state';
 
 // The pilot builds from landing supplies, keeping one workshop and changing its recipe.
-export function simulateDusk(previous: GameState) {
-  let s = landOnDusk(previous);
-  if (s.planetId !== 'dusk') throw Error('landing');
-  const rows = ['seconds,event,progress,power,bed,servo,cnc'];
+export function simulateColony(previous: GameState) {
+  let s = landNext(previous);
+  if (s === previous) throw Error('landing');
+  const planet = planets[s.planetId];
+  const rows = [
+    [
+      'seconds',
+      'event',
+      'progress',
+      'power',
+      ...Object.keys(planet.goal).map((k) => (k === 'machine_bed' ? 'bed' : k)),
+    ].join(','),
+  ];
   const log = (event: string) =>
     rows.push(
       [
@@ -32,7 +41,7 @@ export function simulateDusk(previous: GameState) {
         event,
         progress(s).toFixed(4),
         s.powerFactor.toFixed(3),
-        ...Object.keys(dusk.goal).map((k) => s.goalDelivered[k as keyof typeof dusk.goal] ?? 0),
+        ...quantities(planet.goal).map(([k]) => s.goalDelivered[k] ?? 0),
       ].join(','),
     );
   const plan: MachineId[] = [
@@ -60,11 +69,29 @@ export function simulateDusk(previous: GameState) {
     'electrolyzer',
     'motor_fab',
     'coal_plant',
-    'precision_shop',
   ];
+  if (s.planetId === 'dusk') plan.push('precision_shop');
+  else {
+    plan.push('oil_pump', 'water_pump', 'refinery', 'fuel_plant', 'lds_fab', 'rcu_fab');
+    if (s.planetId === 'frost')
+      plan.push(
+        'coal_drill',
+        'coal_plant',
+        'titanium_drill',
+        'rare_earth_drill',
+        'ti_furnace',
+        'glass_kiln',
+        'sensor_fab',
+        'solar_panel_fab',
+        'space_assembly',
+      );
+  }
   let index = 0;
   log('landing');
-  while (s.timeSec < b.botLimit && s.merchant.stage !== 'finished') {
+  while (
+    s.timeSec < (s.planetId === 'dusk' ? b.botLimit : 4 * b.botLimit) &&
+    s.merchant.stage !== 'finished'
+  ) {
     for (let i = 0; i < Math.round(b.botInterval / b.step); i++) {
       if (i % Math.round(1 / (b.botClicksPerSecond * b.step)) === 0) s = mine(s);
       s = tick(s);
@@ -79,15 +106,27 @@ export function simulateDusk(previous: GameState) {
       ['steel_furnace', 'steel', 290],
       ['chip_fab', 'chip', 110],
       ['motor_fab', 'motor', 40],
+      ['lds_fab', 'lds', 50],
+      ['rcu_fab', 'rcu', 45],
+      ['solar_panel_fab', 'solar_panel', 65],
+      ['sensor_fab', 'sensor', 55],
+      ['fuel_plant', 'rocket_fuel', 300],
     ] as const) {
       const g = s.machines[id],
         paused = s.stock[item] >= limit ? g.count : 0;
       if (paused !== g.paused) s = pause(s, id, paused);
     }
     if (s.machines.precision_shop.count) {
-      const recipe = quantities(dusk.goal).find(([k, n]) => (s.goalDelivered[k] ?? 0) < n)?.[0];
+      const recipe = quantities(planet.goal).find(([k, n]) => (s.goalDelivered[k] ?? 0) < n)?.[0];
       if (recipe === 'machine_bed' || recipe === 'servo' || recipe === 'cnc')
         s = setRecipe(s, 'precision_shop', recipe);
+    }
+    if (s.planetId === 'frost' && s.machines.space_assembly.count) {
+      s = setRecipe(
+        s,
+        'space_assembly',
+        (s.goalDelivered.satellite ?? 0) < planets.frost.goal.satellite ? 'satellite' : 'probe',
+      );
     }
     for (const pair of network(s).active) {
       if (!(pair.item in operatingRecipe(s, pair.target).input)) continue;
@@ -115,9 +154,19 @@ export function simulateDusk(previous: GameState) {
         log('belt_' + pair.key);
       }
     }
-    const before = progress(s);
-    s = deliverGoal(s);
-    if (progress(s) > before) log('deliver');
+    if (s.planetId === 'frost') {
+      for (const item of ['satellite', 'probe'] as const) {
+        const launched = launch(s, item);
+        if (launched !== s) {
+          s = launched;
+          log('launch_' + item);
+        }
+      }
+    } else {
+      const before = progress(s);
+      s = deliverGoal(s);
+      if (progress(s) > before) log('deliver');
+    }
     if (s.merchant.stage === 'docked') {
       s = choose(s, s.merchant.offers[0]);
       s = leaveMerchant(s);

@@ -1,5 +1,5 @@
-import { simulateDusk } from './dusk';
-import { dusk } from '../src/data/planets';
+import { simulateColony } from './colony';
+import { dusk, destination } from '../src/data/planets';
 import { balance as b } from '../src/data/balance';
 import { definition, goldenLine, machineIds, type MachineId } from '../src/data/machines';
 import { quantities } from '../src/data/items';
@@ -112,12 +112,14 @@ console.log('交付', Object.fromEntries(quantities(state.goalDelivered)));
 if (minutes < b.targetMin || minutes > b.targetMax || state.merchant.stage !== 'finished')
   console.warn('警告：未达到规格中的通关时间范围，请策划复核。');
 
-if (state.merchant.stage === 'finished') {
-  const result = simulateDusk(state);
-  writeTimeline(result.rows.join('\n') + '\n', 'simulation-dusk.csv');
+let current = state;
+while (current.merchant.stage === 'finished' && destination[current.planetId]) {
+  const result = simulateColony(current);
+  current = result.state;
+  writeTimeline(result.rows.join('\n') + '\n', 'simulation-' + current.planetId + '.csv');
   const elapsed = result.state.timeSec / b.minute;
   console.log(
-    '晨昏模拟',
+    current.planetId,
     elapsed.toFixed(2),
     '分钟',
     result.state.goalDelivered,
@@ -125,9 +127,11 @@ if (state.merchant.stage === 'finished') {
     progress(result.state),
   );
   if (
-    elapsed < dusk.targetMinutes[0] ||
-    elapsed > dusk.targetMinutes[1] ||
-    result.state.merchant.stage !== 'finished'
+    current.planetId === 'dusk' &&
+    (elapsed < dusk.targetMinutes[0] ||
+      elapsed > dusk.targetMinutes[1] ||
+      result.state.merchant.stage !== 'finished')
   )
     console.warn('警告：晨昏未达到 40–70 分钟验收范围。');
+  if (current.merchant.stage !== 'finished') throw Error('Unfinished ' + current.planetId);
 }

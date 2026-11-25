@@ -241,7 +241,7 @@ function View({ s, act, focus, selected, shortages, focusToken, requestedLink, s
     if (node) flow.fitView({ nodes: [node], maxZoom: 1, padding: 0.3 });
   }, [selected, focusToken, flow]);
 
-  const repaired = s.planetId==='dusk'||progress(s) >= 1;
+  const repaired = s.planetId!=='grit'||progress(s) >= 1;
   const nodes = ids.map((id) => {
     const issue = shortages.find((v) => v.producer === id);
     return {

@@ -3,7 +3,7 @@ import { machineIds } from '../../data/machines';
 import { operatingRecipe } from '../../engine/recipes';
 import { zhCN as t } from '../../i18n/zh-CN';
 export function SplitControls({ s, act }) {
-  if (s.planetId !== 'dusk') return null;
+  if (s.planetId === 'grit') return null;
   const rows = s.seen
     .map((item) => ({
       item,
