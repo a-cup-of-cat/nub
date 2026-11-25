@@ -1,3 +1,4 @@
+import { frost } from '../data/planets';
 import { cards } from '../data/cards';
 import { baseRecipe, isDrawing, recipeFits, type RecipeId } from '../data/recipes';
 import type { MachineId } from '../data/machines';
@@ -20,8 +21,10 @@ export function setRecipe(s: GameState, id: MachineId, recipe: RecipeId): GameSt
 }
 export function operatingRecipe(s: GameState, id: MachineId) {
   const base = baseRecipe(id, s.machines[id].recipe);
-  if (!furnace(id) || !s.cards.includes('arc_furnace')) return base;
+  const load = s.planetId === 'frost' ? frost.loadFactor : 1;
+  if (!furnace(id) || !s.cards.includes('arc_furnace'))
+    return base.power > 0 && load !== 1 ? { ...base, power: base.power * load } : base;
   const input = { ...base.input };
   delete input.coal;
-  return { ...base, input, power: cards.arc_furnace.power };
+  return { ...base, input, power: cards.arc_furnace.power * load };
 }

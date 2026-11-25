@@ -18,8 +18,9 @@ export function settlePower(
   dt: number,
   generation: Partial<Record<MachineId, number>>,
 ) {
-  if (s.planetId !== 'dusk') return;
-  const sun = (sunTime(s.timeSec + dt) - sunTime(s.timeSec)) / dt;
+  if (s.planetId === 'grit') return;
+  // SPEC-GAP: Only Dusk cycles between day and night. Later planets use rated sunlight.
+  const sun = s.planetId !== 'dusk' ? 1 : (sunTime(s.timeSec + dt) - sunTime(s.timeSec)) / dt;
   let supply = (shop.emergency_battery.power * Math.min(s.batterySeconds, dt)) / dt,
     demand = 0;
   for (const id of machineIds) {

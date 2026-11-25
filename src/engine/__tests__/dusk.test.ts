@@ -29,7 +29,7 @@ describe('晨昏', () => {
     old.merchant.stage = 'finished';
     old.meta = { pods: 2, archive: true, recorder: true, slots: 1 };
     old.cards = ['airdrop'];
-    for (const id of machineIds) if (definition(id).dusk) delete old.machines[id];
+    for (const id of machineIds) if ((definition(id).tier ?? 1) >= 2) delete old.machines[id];
     delete old.stock.steel;
     const arrived = landOnDusk(migrate(old));
     expect(arrived.credits).toBe(300);

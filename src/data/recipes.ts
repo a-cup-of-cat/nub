@@ -1,6 +1,18 @@
 import { definition, type MachineId } from './machines';
 import type { Amounts } from './items';
 export const variants = {
+  satellite: {
+    machine: 'space_assembly',
+    input: { solar_panel: 5, sensor: 2.5, titanium_alloy: 10, rcu: 2.5 },
+    output: { satellite: 0.5 },
+    power: 6,
+  },
+  probe: {
+    machine: 'space_assembly',
+    input: { sensor: 5, titanium_alloy: 10, rocket_fuel: 25 },
+    output: { probe: 0.5 },
+    power: 6,
+  },
   machine_bed: {
     machine: 'precision_shop',
     input: { steel: 20, aluminum: 10 },

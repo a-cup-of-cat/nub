@@ -1,4 +1,4 @@
-import { dusk } from '../data/planets';
+import { rank, machineLimit } from '../data/planets';
 import { machineIds, definition } from '../data/machines';
 import { build, canBuild } from './build';
 import { setRecipe, unlockedRecipe } from './recipes';
@@ -20,14 +20,11 @@ export function prepareBlueprint(s: GameState, bp: Blueprint) {
   for (const id of machineIds) {
     const entry = bp.machines[id];
     if (!entry) continue;
-    if ((definition(id).dusk && s.planetId !== 'dusk') || !unlockedRecipe(s, id, entry.recipe)) {
+    if ((definition(id).tier ?? 1) > rank[s.planetId] || !unlockedRecipe(s, id, entry.recipe)) {
       skipped.push(id);
       continue;
     }
-    const room =
-      id === 'coal_drill' && s.planetId === 'dusk'
-        ? Math.max(0, dusk.coalLimit - s.machines[id].count)
-        : entry.count;
+    const room = Math.max(0, machineLimit(s.planetId, id) - s.machines[id].count);
     const count = Math.min(entry.count, room);
     if (count < entry.count) skipped.push(id);
     if (count) queue.push({ id, ...entry, count });

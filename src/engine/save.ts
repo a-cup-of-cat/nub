@@ -4,7 +4,7 @@ import { itemIds } from '../data/items';
 import { machineIds } from '../data/machines';
 import { drawings, recipeFits } from '../data/recipes';
 import { definition } from '../data/machines';
-import { planets, visits, dusk, type PlanetId } from '../data/planets';
+import { planets, visits, rank, machineLimit, type PlanetId } from '../data/planets';
 import { newGame, message, type GameState } from './state';
 import { validOverrides, migrateInstalledBelts, network } from './belts';
 import { tick } from './tick';
@@ -48,7 +48,7 @@ function validEntry(id: string, entry: unknown) {
   );
 }
 function valid(s: Obj): boolean {
-  if (s.planetId !== 'grit' && s.planetId !== 'dusk') return false;
+  if (typeof s.planetId !== 'string' || !Object.hasOwn(planets, s.planetId)) return false;
   const planet = s.planetId as PlanetId;
   const goal: Record<string, number> = planets[planet].goal;
   if (
@@ -101,8 +101,8 @@ function valid(s: Obj): boolean {
       return (
         record(g) &&
         recipeFits(id, g.recipe) &&
-        (!definition(id).dusk || planet === 'dusk' || g.count === 0) &&
-        (id !== 'coal_drill' || planet !== 'dusk' || (g.count as number) <= dusk.coalLimit) &&
+        ((definition(id).tier ?? 1) <= rank[planet] || g.count === 0) &&
+        (g.count as number) <= machineLimit(planet, id) &&
         integer(g.built) &&
         (g.built as number) >= (g.count as number) &&
         integer(g.count) &&
@@ -221,7 +221,7 @@ export function migrate(raw: unknown): GameState {
     const fresh = newGame();
     const stock = { ...s.stock },
       machines = { ...s.machines };
-    for (const id of machineIds) if (definition(id).dusk) machines[id] = fresh.machines[id];
+    for (const id of machineIds) if (definition(id).tier === 2) machines[id] = fresh.machines[id];
     for (const id of [
       'bauxite',
       'glass',
@@ -237,7 +237,7 @@ export function migrate(raw: unknown): GameState {
       stock[id] = 0;
     s = {
       ...s,
-      version: b.version,
+      version: 5,
       stock,
       machines,
       supply: 0,
@@ -249,6 +249,21 @@ export function migrate(raw: unknown): GameState {
       visits: s.merchant.stage === 'away' ? 0 : 1,
       meta: { ...s.meta, blueprints: [] },
     };
+  }
+  if (s.version === 5) {
+    if (!record(s.stock) || !record(s.machines) || !['grit', 'dusk'].includes(String(s.planetId)))
+      throw Error('save');
+    const fresh = newGame(),
+      stock = { ...s.stock },
+      machines = { ...s.machines };
+    for (const id of machineIds)
+      if ((definition(id).tier ?? 1) >= 3) {
+        machines[id] = fresh.machines[id];
+        for (const item of Object.keys(definition(id).output))
+          if (item !== 'plastic') stock[item] = 0;
+      }
+    stock.probe = 0;
+    s = { ...s, stock, machines, version: b.version };
   }
   if (!valid(s)) throw Error('save');
   const state = s as unknown as GameState;

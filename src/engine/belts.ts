@@ -19,12 +19,19 @@ export const toCell = (p: Point): Point => ({
   x: Math.round(p.x / cfg.cell),
   y: Math.round(p.y / cfg.cell),
 });
-// Precision recipes keep dedicated sockets when the workshop changes jobs.
-export function sockets(id:MachineId) {
- const d=definition(id);
- if(id!=='precision_shop')return d;
- return {...d,input:{...variants.machine_bed.input,...variants.servo.input,...variants.cnc.input},output:{...variants.machine_bed.output,...variants.servo.output,...variants.cnc.output}};
+// The graph includes all possible inputs and outputs so installed routes survive recipe changes.
+export function sockets(id: MachineId) {
+  const d = definition(id);
+  if (id === 'circuit_fab') return { ...d, input: { ...d.input, plastic:variants.plastic_circuit.input.plastic } };
+  if (id === 'space_assembly') {
+    return { ...d, input: { ...d.input, ...variants.probe.input }, output: { ...d.output, ...variants.probe.output } };
+  }
+  if (id === 'precision_shop') {
+    return { ...d, input: { ...d.input, ...variants.servo.input, ...variants.cnc.input }, output: { ...d.output, ...variants.servo.output, ...variants.cnc.output } };
+  }
+  return d;
 }
+// SPEC-GAP: Fluids use the same typed sockets and player-laid routes as solid cargo.
 export const pairs = machineIds.flatMap((target) =>
   quantities(sockets(target).input).map(([item]) => {
     const source = machineIds.find((id) => item in sockets(id).output)!;
@@ -63,7 +70,7 @@ export function footprint(id:MachineId){const fp=definition(id).fp;
  return fp>=4?cfg.sizes.large:fp>=2?cfg.sizes.medium:cfg.sizes.small;
 }
 function physicalPorts(id:MachineId){
- const d=sockets(id),{w,h}=footprint(id);
+ const d = id === 'circuit_fab' ? definition(id) : sockets(id), {w,h}=footprint(id);
  function side(items:ItemId[],output:boolean){return items.map((item,i)=>({item,output,x:output?w:0,y:Math.round((i+1)*h/(items.length+1))}));}
  return [...side(quantities(d.input).map(([k])=>k),false),...side(quantities(d.output).map(([k])=>k),true)];
 }

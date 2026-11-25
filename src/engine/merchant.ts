@@ -4,11 +4,18 @@ import { items, quantities, rawItems, type ItemId } from '../data/items';
 import type { MachineId } from '../data/machines';
 import { shop, type Product } from '../data/shop';
 import { drawings, variants, type Drawing } from '../data/recipes';
-import { planets, visits, dusk } from '../data/planets';
+import { planets, visits, frost, marketFactor } from '../data/planets';
 import { available, cost, fits, install } from './build';
 import { message, random, type GameState } from './state';
 function goalWeight(id: ItemId) {
-  if (id !== 'machine_bed' && id !== 'servo' && id !== 'cnc') return 0;
+  if (
+    id !== 'machine_bed' &&
+    id !== 'servo' &&
+    id !== 'cnc' &&
+    id !== 'satellite' &&
+    id !== 'probe'
+  )
+    return 0;
   const recipe = variants[id];
   return (
     quantities(recipe.input).reduce((v, [k, n]) => v + n * (items[k].value ?? 0), 0) /
@@ -27,7 +34,7 @@ export function progress(s: GameState) {
 }
 export function draw(s: GameState) {
   const pool = cardIds.filter(
-      (id) => !s.cards.includes(id) && (s.planetId === 'dusk' || !powerCards.includes(id)),
+      (id) => !s.cards.includes(id) && (s.planetId !== 'grit' || !powerCards.includes(id)),
     ),
     offers: CardId[] = [];
   const count = s.cards.includes('merchant_friend') ? b.extraCardCount : b.cardCount;
@@ -64,7 +71,26 @@ function arrive(s: GameState, farewell: boolean) {
   }
   message(s, farewell ? 'repair' : 'arrival');
 }
+export function canLaunch(s: GameState, item: ItemId) {
+  return (
+    s.planetId === 'frost' &&
+    (item === 'satellite' || item === 'probe') &&
+    (s.goalDelivered[item] ?? 0) < frost.goal[item] &&
+    s.stock[item] + b.epsilon >= 1 &&
+    s.stock.rocket_fuel + b.epsilon >= frost.fuelPerLaunch
+  );
+}
+export function launch(s: GameState, item: ItemId): GameState {
+  if (!canLaunch(s, item)) return s;
+  const n = structuredClone(s);
+  n.stock[item] = Math.max(0, n.stock[item] - 1);
+  n.stock.rocket_fuel = Math.max(0, n.stock.rocket_fuel - frost.fuelPerLaunch);
+  n.goalDelivered[item] = (n.goalDelivered[item] ?? 0) + 1;
+  nextVisit(n);
+  return n;
+}
 export function deliverGoal(s: GameState, item?: ItemId) {
+  if (s.planetId === 'frost') return s;
   const n = structuredClone(s);
   let changed = false;
   for (const [id, target] of quantities(planets[s.planetId].goal)) {
@@ -102,7 +128,7 @@ export function leaveMerchant(s: GameState) {
   return n;
 }
 export const rerollCost = (s: GameState) =>
-  (s.planetId === 'dusk' ? dusk.priceFactor : 1) *
+  marketFactor(s.planetId) *
   b.reroll *
   b.rerollGrowth ** (s.cards.includes('haggle') ? 0 : s.merchant.rerolls);
 export function reroll(s: GameState) {
@@ -147,8 +173,8 @@ export function price(s: GameState, p: Product, id: MachineId = 'crusher') {
   }
   return (
     v *
-    (s.planetId === 'dusk' && !['bp_slot', 'bp_recorder', 'archive', 'supply_pod'].includes(p)
-      ? dusk.priceFactor
+    (!['bp_slot', 'bp_recorder', 'archive', 'supply_pod'].includes(p)
+      ? marketFactor(s.planetId)
       : 1) *
     (s.cards.includes('haggle') ? cards.haggle.effect : 1) *
     (s.merchant.stage === 'farewell' ? b.clearance : 1)
@@ -164,9 +190,9 @@ export function purchasable(
   if (!trading(s) || s.credits + b.epsilon < price(s, p, id)) return false;
   switch (p) {
     case 'blueprint_card':
-      return s.planetId === 'dusk' && drawings.includes(drawing) && !s.drawings.includes(drawing);
+      return s.planetId !== 'grit' && drawings.includes(drawing) && !s.drawings.includes(drawing);
     case 'emergency_battery':
-      return s.planetId === 'dusk' && !s.batterySeconds;
+      return s.planetId !== 'grit' && !s.batterySeconds;
     case 'buy_machine':
       return available(s, id) && fits(s, id);
     case 'valve':

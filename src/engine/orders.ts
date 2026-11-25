@@ -1,11 +1,11 @@
 import { balance as b } from '../data/balance';
 import { cards } from '../data/cards';
-import { items, itemIds } from '../data/items';
+import { items, itemIds, rawItems } from '../data/items';
 import { message, random, type GameState, type Order } from './state';
 const roundOrder = (n: number) => Math.round(n / b.orderRound) * b.orderRound;
 export function generateOrder(s: GameState): Order | null {
   const pool = itemIds.filter(
-    (id) => items[id].value !== null && items[id].shape !== 'ore' && (s.gross[id] ?? 0) > b.epsilon,
+    (id) => items[id].value !== null && !rawItems.includes(id) && (s.gross[id] ?? 0) > b.epsilon,
   );
   if (!pool.length) return null;
   const item = pool[Math.floor(random(s) * pool.length)],

@@ -75,7 +75,7 @@ export function tick(s: GameState, dt: number = b.step, offline = false): GameSt
     n.beltFlow[belt.id] = carried ? (actual * (perLane[belt.id] ?? 0)) / carried : 0;
   }
   for (const item of itemIds) n.stock[item] = Math.max(0, s.stock[item] + n.net[item] * factor);
-  if (s.planetId === 'dusk')
+  if (s.planetId !== 'grit')
     settlePower(
       s,
       n,

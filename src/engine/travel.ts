@@ -1,4 +1,4 @@
-import { dusk } from '../data/planets';
+import { dusk, destination, planets } from '../data/planets';
 import { cards } from '../data/cards';
 import { drawings } from '../data/recipes';
 import { shop } from '../data/shop';
@@ -6,11 +6,12 @@ import { newGame, random, type GameState } from './state';
 import { install } from './build';
 
 export const carryLimit = (s: GameState) => dusk.carryBase + s.meta.pods * shop.supply_pod.amount;
-export function landOnDusk(s: GameState): GameState {
-  if (s.planetId !== 'grit' || s.merchant.stage !== 'finished') return s;
+export function landNext(s: GameState): GameState {
+  const next = destination[s.planetId];
+  if (!next || s.merchant.stage !== 'finished') return s;
   const n = newGame(s.rngSeed);
-  n.planetId = 'dusk';
-  n.gridCapacity = dusk.grid;
+  n.planetId = next;
+  n.gridCapacity = planets[next].grid;
   n.meta = structuredClone(s.meta);
   n.lastSavedAt = s.lastSavedAt;
   n.credits = Math.min(s.credits, carryLimit(s));
@@ -20,3 +21,5 @@ export function landOnDusk(s: GameState): GameState {
   if (n.meta.archive) n.drawings.push(drawings[Math.floor(random(n) * drawings.length)]);
   return n;
 }
+
+export const landOnDusk = (s: GameState) => (s.planetId === 'grit' ? landNext(s) : s);

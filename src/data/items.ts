@@ -22,11 +22,24 @@ export const items = {
   servo: { value: null, shape: 'component' },
   cnc: { value: null, shape: 'electronic' },
   plastic: { value: 3, shape: 'ingot' },
+  water: { value: 0.5, shape: 'fluid' },
+  oil: { value: 1, shape: 'fluid' },
+  rocket_fuel: { value: 2.5, shape: 'fluid' },
+  lds: { value: 80, shape: 'component' },
+  rcu: { value: 460, shape: 'electronic' },
+  titanium_ore: { value: 2, shape: 'ore' },
+  rare_earth: { value: 4, shape: 'ore' },
+  titanium_alloy: { value: 10, shape: 'ingot' },
+  sensor: { value: 135, shape: 'electronic' },
+  satellite: { value: null, shape: 'component' },
+  probe: { value: null, shape: 'component' },
 } as const;
 export type ItemId = keyof typeof items;
 export type Amounts = Partial<Record<ItemId, number>>;
 export const itemIds = Object.keys(items) as ItemId[];
-export const rawItems = itemIds.filter((id) => items[id].shape === 'ore');
+export const rawItems = itemIds.filter(
+  (id) => items[id].shape === 'ore' || id === 'water' || id === 'oil',
+);
 export function quantities(amounts: Amounts) {
   return Object.entries(amounts) as [ItemId, number][];
 }
